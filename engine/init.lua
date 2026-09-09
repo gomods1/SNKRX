@@ -121,6 +121,7 @@ function engine_run(config)
       for name, a, b, c, d, e, f in love.event.poll() do
         if name == "quit" then
           if not love.quit or not love.quit() then
+            if access and access.quit then access.quit() end
             system.save_state()
             steam.shutdown()
             return a or 0

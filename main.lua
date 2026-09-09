@@ -7,6 +7,7 @@ require 'objects'
 require 'player'
 require 'enemies'
 require 'media'
+require 'accessibility'
 
 
 function init()
@@ -1759,10 +1760,17 @@ function init()
   print(table.tostring(love.graphics.getSystemLimits()))
   print(table.tostring(love.graphics.getStats()))
   ]]--
+
+  -- Last, so that every class, data table and the first state already exist by
+  -- the time the accessibility layer wraps them.
+  access.init()
 end
 
 
 function update(dt)
+  -- Runs before the game so that synthetic clicks from keyboard navigation are
+  -- visible to widgets in the same frame they were requested.
+  access.update(dt)
   main:update(dt)
 
   --[[
@@ -1881,6 +1889,7 @@ function open_options(self)
         if self.ng_plus_plus_button then self.ng_plus_plus_button.dead = true; self.ng_plus_plus_button = nil end
         if self.ng_plus_minus_button then self.ng_plus_minus_button.dead = true; self.ng_plus_minus_button = nil end
         if self.main_menu_button then self.main_menu_button.dead = true; self.main_menu_button = nil end
+        access.destroy_options(self)
         system.save_state()
         if self:is(MainMenu) or self:is(BuyScreen) then input:set_mouse_visible(true)
         elseif self:is(Arena) then input:set_mouse_visible(state.mouse_control or false) end
@@ -2098,6 +2107,8 @@ function open_options(self)
       steam.shutdown()
       love.event.quit()
     end}
+
+    access.create_options(self)
   end, 'pause')
 end
 
@@ -2128,6 +2139,7 @@ function close_options(self)
     if self.ng_plus_plus_button then self.ng_plus_plus_button.dead = true; self.ng_plus_plus_button = nil end
     if self.ng_plus_minus_button then self.ng_plus_minus_button.dead = true; self.ng_plus_minus_button = nil end
     if self.main_menu_button then self.main_menu_button.dead = true; self.main_menu_button = nil end
+    access.destroy_options(self)
     system.save_state()
     if self:is(MainMenu) or self:is(BuyScreen) then input:set_mouse_visible(true)
     elseif self:is(Arena) then input:set_mouse_visible(state.mouse_control or false) end

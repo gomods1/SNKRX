@@ -687,7 +687,10 @@ end
 function GoButton:update(dt)
   self:update_game_object(dt)
 
-  if ((self.selected and input.m1.pressed) or input.enter.pressed) and not self.transitioning then
+  -- Enter normally starts the round from anywhere on the shop screen. With
+  -- keyboard navigation on, Enter belongs to whatever widget has focus and G
+  -- takes over as the "start the round" key; see access.enter_starts_round.
+  if ((self.selected and input.m1.pressed) or access.enter_starts_round()) and not self.transitioning then
     if #self.parent.units == 0 then
       if not self.info_text then
         error1:play{pitch = random:float(0.95, 1.05), volume = 0.5}

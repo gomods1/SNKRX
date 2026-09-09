@@ -1,2 +1,6 @@
 steam/
 builds/
+
+# Local dev stub that shadows engine/love/luasteam.dll so the game runs from a
+# checkout without a Steam client. Must not ship: it disables achievements.
+luasteam.lua

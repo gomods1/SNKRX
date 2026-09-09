@@ -11,6 +11,13 @@ https://user-images.githubusercontent.com/409773/119258159-ea982b00-bb9e-11eb-80
 
 [**Check it out on Steam!**](https://store.steampowered.com/app/915310/SNKRX/)
 
+### Accessibility
+
+SNKRX is fully playable without sight: menus and the shop are keyboard
+navigable and spoken through your screen reader, and the arena is narrated by
+panned audio cues. It is on by default; press `F1` in game for the key list, or
+see [ACCESSIBILITY.md](ACCESSIBILITY.md).
+
 ### Running
 
 Download this repository, `cd` into it and then run `engine/love/love.exe --console .`. You need to have Steam up to run it successfully.
