@@ -82,27 +82,33 @@ local function region_of(st, o)
 end
 
 
+-- Returns the groups to look in and a key naming the situation: the guide,
+-- the credits, a modal (options, item choice, death, victory) or the screen
+-- itself. Focus is kept separately per situation.
 local function collect_groups(st)
-  if st.in_tutorial and st.tutorial then return {st.tutorial} end
+  if st.in_tutorial and st.tutorial then return {st.tutorial}, 'tutorial' end
+  -- The credits sit in a group of their own and freeze every other button.
+  if st.in_credits and st.credits then return {st.credits}, 'credits' end
   -- While a modal is up the screen behind it is inert, so only offer the modal.
   if st.paused or st.choosing_passives or st.died or st.won then
-    return st.ui and {st.ui} or {}
+    return st.ui and {st.ui} or {}, 'modal'
   end
   local out = {}
   for _, name in ipairs({'main', 'main_ui', 'effects', 'ui'}) do
     local g = st[name]
     if g and g.objects then table.insert(out, g) end
   end
-  return out
+  return out, 'screen'
 end
 
 
 function nav.collect()
   local st = main and main.current
-  if not st or st.transitioning then return {} end
+  if not st or st.transitioning then return {}, 'none' end
 
+  local groups, context = collect_groups(st)
   local items = {}
-  for _, group in ipairs(collect_groups(st)) do
+  for _, group in ipairs(groups) do
     for _, o in ipairs(group.objects) do
       if o.interact_with_mouse and o.shape and not o.dead and not o.hidden and not is_redundant(o) then
         table.insert(items, o)
@@ -125,6 +131,9 @@ function nav.collect()
   for _, o in ipairs(items) do
     o.a11y_region, o.a11y_region_name = region_of(st, o)
     if o.card_i then
+      -- On the item-choice screen the four cards are the point; the build
+      -- list beside them is reference material and comes after.
+      o.a11y_region = -1
       o.a11y_row, o.a11y_col = card_row, o.card_i
     else
       o.a11y_row, o.a11y_col = math.floor(o.y / 14), o.x
@@ -137,7 +146,7 @@ function nav.collect()
     if a.a11y_col ~= b.a11y_col then return a.a11y_col < b.a11y_col end
     return tostring(a.id) < tostring(b.id)
   end)
-  return items
+  return items, context
 end
 
 
@@ -230,6 +239,35 @@ local function reorder_party(o, delta)
 end
 
 
+-- Selling a single spare copy is a right click on one of the small tiles
+-- beside a party member. Those tiles are skipped by Tab (see is_redundant), so
+-- the sale is done here directly, the same way the tile's own click does it.
+local function sell_reserve(o)
+  local parent = o.parent
+  if not parent or not parent.units or not o.i then return false end
+  local part = o.parts and o.parts[#o.parts]
+  if not part or part.dead then
+    access.say('no spare copies to sell', {interrupt = true})
+    return true
+  end
+  local ok, err = pcall(function()
+    local unit = parent.units[o.i]
+    access.pending_sale(access.describe.character(part.character, part.level) .. ' spare copy')
+    parent:gain_gold(part:get_sale_price())
+    unit.reserve[part.level] = unit.reserve[part.level] - 1
+    part:die()
+    parent:set_party_and_sets()
+    parent:refresh_cards()
+    if system and system.save_run then
+      system.save_run(parent.level, parent.loop, gold, parent.units, parent.passives,
+        parent.shop_level, parent.shop_xp, run_passive_pool, locked_state)
+    end
+  end)
+  if not ok then print('[accessibility] sell spare copy failed: ' .. tostring(err)) end
+  return true
+end
+
+
 function nav.activate(secondary)
   local o = nav.focus
   if not o then
@@ -241,6 +279,14 @@ function nav.activate(secondary)
   if is(o, 'CharacterPart') and not secondary and not o.cant_click then
     access.say('use page up and page down to reorder, backspace to sell', {interrupt = true})
     return
+  end
+  -- Selling says what was sold, which the game's own gold line cannot know.
+  if secondary and not o.cant_click then
+    if is(o, 'CharacterPart') then
+      access.pending_sale(access.describe.character(o.character, o.level))
+    elseif is(o, 'ItemCard') then
+      access.pending_sale(access.describe.passive_name(o.passive))
+    end
   end
   pending = {button = secondary and 'm2' or 'm1', frames = 0}
 end
@@ -271,6 +317,9 @@ local function service_click()
 end
 
 
+local last_context = nil
+local saved_focus = {}   -- context key -> id of the widget that had focus there
+
 function nav.update(dt)
   if not nav.enabled then return end
 
@@ -279,13 +328,32 @@ function nav.update(dt)
     last_screen = st
     nav.items, nav.index, nav.focus, signature = {}, 0, nil, nil
     pending, release_next, spoken_region = nil, nil, nil
+    last_context, saved_focus = nil, {}
   end
 
-  local items = nav.collect()
+  local items, context = nav.collect()
   local sig = tostring(#items)
   for _, o in ipairs(items) do sig = sig .. '|' .. tostring(o.id) end
 
-  if sig ~= signature then
+  if context ~= last_context then
+    -- The guide, the options or a card screen has opened or closed. Remember
+    -- where the focus was in the situation being left and put it back in the
+    -- one being entered, silently: the screen announces itself, and speaking
+    -- a widget here would cut that announcement off.
+    if last_context then saved_focus[last_context] = nav.focus and nav.focus.id or nil end
+    last_context = context
+    signature = sig
+    nav.items = items
+    nav.index, nav.focus = 0, nil
+    local want = saved_focus[context]
+    if want then
+      for i, o in ipairs(items) do
+        if o.id == want then nav.index, nav.focus = i, o break end
+      end
+    end
+    spoken_region = nil
+    pending, release_next = nil, nil
+  elseif sig ~= signature then
     signature = sig
     local previous, previous_index = nav.focus, nav.index
     nav.items = items
@@ -301,11 +369,12 @@ function nav.update(dt)
       nav.index, nav.focus = found, items[found]
     elseif previous and #items > 0 then
       -- The focused widget was bought, sold or rerolled away. Land on whatever
-      -- took its place rather than dumping the player back at the top.
+      -- took its place rather than dumping the player back at the top, and
+      -- queue its name behind the line that says what just happened to it.
       nav.index = math.max(1, math.min(previous_index, #items))
       nav.focus = items[nav.index]
       warp_to(nav.focus)
-      nav.speak_focus()
+      nav.speak_focus(false)
     else
       nav.index, nav.focus = 0, nil
     end
@@ -356,7 +425,11 @@ function nav.handle_input()
       return true
     end
     if pressed('backspace') or pressed('delete') then
-      nav.activate(true)
+      if shift and o and is(o, 'CharacterPart') and not o.cant_click then
+        sell_reserve(o)
+      else
+        nav.activate(true)
+      end
       return true
     end
   end

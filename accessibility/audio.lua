@@ -47,6 +47,12 @@ local CUE_DEFS = {
   spawn       = {freq = 330, dur = 0.22, harmonics = {1, 0.60, 0.30}, decay = 9,  gain = 0.60, tremolo = 22},
   -- A hero in the snake just died.
   unit_down   = {freq = 240, dur = 0.28, harmonics = {1, 0.45, 0.2},  decay = 8,  gain = 0.65},
+  -- The elite: a slow, heavy pulse that stays audible under the swarm.
+  boss        = {freq = 110, dur = 0.30, harmonics = {1, 0.55, 0.30, 0.15}, decay = 7, gain = 0.55},
+  -- A headbutter winding up its charge: a nervous flutter.
+  charge      = {freq = 290, dur = 0.40, harmonics = {1, 0.40, 0.20}, decay = 5,  gain = 0.60, tremolo = 11},
+  -- A mine about to burst into a ring of shots: a sharp high tick.
+  mine        = {freq = 980, dur = 0.09, harmonics = {1, 0.30},       decay = 30, gain = 0.50},
 }
 
 

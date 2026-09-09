@@ -5,9 +5,11 @@
 -- control is "turn left" or "turn right". A player needs a continuous sense of
 -- where the threats are, not a sentence about them two seconds later.
 --
--- So this module runs three continuous sonars -- enemies, walls, pickups --
--- plus a set of on-demand spoken reports for the things that are better said
--- than sung: wave progress, party health, build composition.
+-- So this module runs four continuous sonars -- enemies, the elite, walls,
+-- pickups -- plus spoken announcements for the moments that matter (a wave, a
+-- hero lost, a headbutter charging, a mine) and a set of on-demand reports for
+-- the things that are better said than sung: wave progress, party health,
+-- build composition.
 
 local hud = {}
 access.hud = hud
@@ -19,16 +21,20 @@ hud.sonar_walls = true
 hud.sonar_pickups = true
 hud.announce_combat = true
 
-local timers = {enemy = 0, wall = 0, edge = 0, pickup = 0, scan = 0}
+local timers = {enemy = 0, wall = 0, edge = 0, pickup = 0, scan = 0, boss = 0}
 local cache = {enemies = {}, pickups = {}}
 local watched = {}
 
 
 function hud.reset()
-  timers = {enemy = 0, wall = 0, edge = 0, pickup = 0, scan = 0}
+  timers = {enemy = 0, wall = 0, edge = 0, pickup = 0, scan = 0, boss = 0}
   cache = {enemies = {}, pickups = {}}
-  watched = {}
+  watched = {elite = {}, seen = {}, low = {}}
+  hud._spawn_pending, hud._spawn_scheduled, hud._spawn_boss = nil, nil, nil
+  hud._arrivals, hud._arrivals_scheduled = nil, nil
+  hud._last_incoming, hud._last_bounce, hud._last_boss_attack = nil, nil, nil
 end
+hud.reset()
 
 
 local function clamp(v, lo, hi) return math.max(lo, math.min(hi, v)) end
@@ -72,6 +78,12 @@ local function relative_bearing(p, x, y)
 end
 
 
+local function range_and_bearing(p, o)
+  local dx, dy = o.x - p.x, o.y - p.y
+  return math.sqrt(dx * dx + dy * dy), describe.wrap_angle(math.atan2(dy, dx) - p.r)
+end
+
+
 -- ------------------------------------------------------------------ sonar --
 
 local function scan_enemies(p, a)
@@ -79,9 +91,8 @@ local function scan_enemies(p, a)
   local objects = a.main:get_objects_by_classes(a.enemies)
   for _, e in ipairs(objects) do
     if not e.dead then
-      local dx, dy = e.x - p.x, e.y - p.y
-      local d = math.sqrt(dx * dx + dy * dy)
-      table.insert(list, {o = e, d = d, b = describe.wrap_angle(math.atan2(dy, dx) - p.r)})
+      local d, b = range_and_bearing(p, e)
+      table.insert(list, {o = e, d = d, b = b})
     end
   end
   table.sort(list, function(l, r) return l.d < r.d end)
@@ -96,10 +107,8 @@ local function scan_pickups(p, a)
     if class then
       for _, g in ipairs(a.main:get_objects_by_class(class)) do
         if not g.dead then
-          local dx, dy = g.x - p.x, g.y - p.y
-          local d = math.sqrt(dx * dx + dy * dy)
-          table.insert(list, {o = g, d = d, b = describe.wrap_angle(math.atan2(dy, dx) - p.r),
-            kind = (class_name == 'Gold') and 'gold' or 'orb'})
+          local d, b = range_and_bearing(p, g)
+          table.insert(list, {o = g, d = d, b = b, kind = (class_name == 'Gold') and 'gold' or 'orb'})
         end
       end
     end
@@ -177,6 +186,20 @@ local function update_sonar(dt)
         end
       end
     end
+
+    -- The elite gets a pulse of its own. It is the one enemy that has to be
+    -- killed to end the round, and the swarm around it hides it completely
+    -- from the nearest-enemy ping.
+    local boss = a.boss
+    if boss and not boss.dead then
+      timers.boss = timers.boss - dt
+      if timers.boss <= 0 then
+        local d, b = range_and_bearing(p, boss)
+        timers.boss = remap(d, 30, 250, 0.45, 1.2)
+        local front = math.cos(b) > 0
+        access.audio.play('boss', math.sin(b), front and remap(d, 20, 250, 1.3, 0.9) or remap(d, 20, 250, 0.85, 0.6), 1)
+      end
+    end
   end
 
   -- Walls ---------------------------------------------------------------
@@ -240,6 +263,157 @@ end
 
 
 local HEALTH_STEPS = {0.75, 0.5, 0.25, 0.1}
+local BOSS_STEPS = {0.75, 0.5, 0.25}
+
+
+-- Which heroes are alive, by id, so that a loss can be named.
+local function remember_party(a)
+  local p = a.player
+  if not p or not p.get_all_units then return end
+  local ids = {}
+  for _, u in ipairs(p:get_all_units()) do ids[u.id] = describe.character(u.character) end
+  watched.unit_ids = ids
+  watched.leader_id = p.id
+end
+
+
+local function watch_party(a)
+  local p = a.player
+  if not p or not p.get_all_units then return end
+  local units = p:get_all_units()
+
+  -- Heroes lost, by name. The game only shows this as a tile going grey.
+  local seen = {}
+  for _, u in ipairs(units) do seen[u.id] = true end
+  if watched.unit_ids then
+    local lost = {}
+    for id, name in pairs(watched.unit_ids) do
+      if not seen[id] then table.insert(lost, name) end
+    end
+    if #lost > 0 then
+      access.audio.play('unit_down', 0, 1, 1)
+      local n = #units
+      access.say(describe.list(lost) .. (#lost == 1 and ' is down, ' or ' are down, ') ..
+        n .. (n == 1 and ' hero left' or ' heroes left'), {interrupt = false, priority = true})
+      -- The party total is now over fewer heroes, so it jumps; start the
+      -- health thresholds afresh rather than reporting that as a heal.
+      watched.health = nil
+    end
+  end
+  local ids = {}
+  for _, u in ipairs(units) do ids[u.id] = describe.character(u.character) end
+  watched.unit_ids = ids
+
+  -- When the head dies the next hero in line takes over the steering, and
+  -- with it the hits.
+  if watched.leader_id and p.id ~= watched.leader_id then
+    access.say(describe.character(p.character) .. ' is now the head', {interrupt = false, priority = true})
+  end
+  watched.leader_id = p.id
+
+  -- One hero running low is worth a word even when the party as a whole is
+  -- healthy: it is usually the head, and it is about to become a loss.
+  for _, u in ipairs(units) do
+    if not u.dead and u.max_hp and u.max_hp > 0 then
+      local f = u.hp / u.max_hp
+      if f <= 0.25 and not watched.low[u.id] then
+        watched.low[u.id] = true
+        access.say(describe.character(u.character) .. ' low, ' .. math.floor(f * 100 + 0.5) .. ' percent',
+          {interrupt = false})
+      elseif f > 0.4 and watched.low[u.id] then
+        watched.low[u.id] = nil
+      end
+    end
+  end
+end
+
+
+-- Special enemies are told apart on screen by colour, and each one changes
+-- how the fight should be played. Say what has turned up, and warn when a
+-- headbutter is winding up or a shooter has stopped to take aim.
+local function watch_enemies(a)
+  local newcomers = {}
+  for _, e in ipairs(cache.enemies) do
+    local o = e.o
+    if not watched.seen[o.id] then
+      watched.seen[o.id] = true
+      if not o.boss then
+        local k = describe.enemy_kind(o)
+        if k ~= 'enemy' and k ~= 'critter' then newcomers[k] = (newcomers[k] or 0) + 1 end
+      end
+    end
+
+    if o.headbutter then
+      local state = (o.headbutting and 'butt') or (o.headbutt_charging and 'charge') or 'idle'
+      if watched.elite[o.id] ~= state then
+        watched.elite[o.id] = state
+        if state == 'charge' then
+          access.audio.play('charge', math.sin(e.b), 1, 1)
+          access.say('headbutter charging, ' .. describe.distance(e.d) .. ' at ' .. describe.clock(e.b), {interrupt = false})
+        elseif state == 'butt' then
+          access.audio.play('charge', math.sin(e.b), 1.5, 1)
+          access.say('headbutt from ' .. describe.side(e.b), {interrupt = true, priority = true})
+        end
+      end
+    elseif o.shooter then
+      local state = o.shooting and 'shooting' or 'idle'
+      if watched.elite[o.id] ~= state then
+        watched.elite[o.id] = state
+        if state == 'shooting' then
+          access.say('shooter taking aim, ' .. describe.distance(e.d) .. ' at ' .. describe.clock(e.b), {interrupt = false})
+        end
+      end
+    end
+  end
+
+  -- Several usually arrive in the same burst; collapse them into one line.
+  if next(newcomers) then
+    hud._arrivals = hud._arrivals or {}
+    for k, n in pairs(newcomers) do hud._arrivals[k] = (hud._arrivals[k] or 0) + n end
+    if not hud._arrivals_scheduled then
+      hud._arrivals_scheduled = true
+      trigger:after(0.5, function()
+        pcall(function()
+          hud._arrivals_scheduled = false
+          local arrivals = hud._arrivals or {}
+          hud._arrivals = nil
+          local parts = {}
+          for k, n in pairs(arrivals) do table.insert(parts, describe.count(n, k)) end
+          table.sort(parts)
+          if #parts > 0 then access.say('arriving: ' .. describe.list(parts), {interrupt = false}) end
+        end)
+      end, 'access_arrivals')
+    end
+  end
+end
+
+
+local function watch_boss(a)
+  local boss = a.boss
+  if not boss then return end
+  if not watched.boss_seen then
+    watched.boss_seen = true
+    access.say(describe.boss_name(boss.boss) .. ' is here. Kill it to win the round.', {interrupt = false, priority = true})
+  end
+  if boss.dead then
+    if not watched.boss_dead then
+      watched.boss_dead = true
+      access.say('elite down. Clear the rest.', {interrupt = false, priority = true})
+    end
+    return
+  end
+  if boss.max_hp and boss.max_hp > 0 then
+    local f = boss.hp / boss.max_hp
+    if watched.boss_hp == nil then watched.boss_hp = f end
+    for _, step in ipairs(BOSS_STEPS) do
+      if watched.boss_hp > step and f <= step then
+        access.say('elite at ' .. math.floor(step * 100) .. ' percent', {interrupt = false})
+      end
+    end
+    watched.boss_hp = f
+  end
+end
+
 
 local function watch_announcements(dt)
   local a = arena()
@@ -263,6 +437,8 @@ local function watch_announcements(dt)
     end
   end
 
+  if hud.announce_combat then watch_party(a) end
+
   -- Party health thresholds. Only ever spoken on the way down, and only once
   -- per threshold, so a long fight does not turn into a monologue.
   local frac = party_health(a)
@@ -280,27 +456,10 @@ local function watch_announcements(dt)
     watched.health = frac
   end
 
-  -- Units lost.
-  local p = a.player
-  if p and p.get_all_units then
-    local n = #p:get_all_units()
-    if watched.units and n < watched.units then
-      access.audio.play('unit_down', 0, 1, 1)
-      access.say(n .. (n == 1 and ' hero left' or ' heroes left'), {interrupt = false, priority = true})
-    end
-    watched.units = n
+  if hud.announce_combat then
+    watch_enemies(a)
+    watch_boss(a)
   end
-
-  -- "Area clear" is only worth saying when nothing is coming straight back:
-  -- clearing a wave normally spawns the next one in the same breath.
-  local remaining = #cache.enemies
-  if hud.announce_combat and watched.remaining and remaining == 0 and watched.remaining > 0 then
-    local last_wave = a.max_waves and a.wave and a.wave >= a.max_waves
-    if last_wave and not a.spawning_enemies then
-      access.say('area clear', {interrupt = false})
-    end
-  end
-  watched.remaining = remaining
 end
 
 
@@ -322,14 +481,19 @@ end
 function hud.on_spawn_marker(x, y)
   local a = arena()
   if not a then return end
-  -- Markers keep resolving for a second or so after the run ends; nobody needs
-  -- to hear about a spawn they are no longer alive for.
-  if a.died or a.won or a.choosing_passives then return end
+  -- Markers keep resolving for a second or so after the round ends; nobody
+  -- needs to hear about a spawn they are no longer fighting.
+  if a.died or a.won or a.quitting or a.choosing_passives then return end
   access.audio.play('spawn', 0, 1, 0.9)
   local p = a.player
   if p and not p.dead then
     local b = relative_bearing(p, x, y)
     access.audio.play('spawn', math.sin(b), math.cos(b) > 0 and 1.15 or 0.8, 0.9)
+  end
+  -- The first marker of an elite round is the elite itself.
+  if a.boss_level and not a.boss and not watched.boss_marker then
+    watched.boss_marker = true
+    hud._spawn_boss = true
   end
   -- Several markers often appear at once; collapse them into one sentence.
   hud._spawn_pending = hud._spawn_pending or {}
@@ -337,15 +501,18 @@ function hud.on_spawn_marker(x, y)
   if not hud._spawn_scheduled then
     hud._spawn_scheduled = true
     trigger:after(0.25, function()
-      hud._spawn_scheduled = false
-      local places = hud._spawn_pending or {}
-      hud._spawn_pending = nil
-      if #places == 0 then return end
-      local unique, seen = {}, {}
-      for _, s in ipairs(places) do
-        if not seen[s] then seen[s] = true; table.insert(unique, s) end
-      end
-      access.say('enemies at the ' .. describe.list(unique), {interrupt = false})
+      pcall(function()
+        hud._spawn_scheduled = false
+        local places = hud._spawn_pending or {}
+        local boss = hud._spawn_boss
+        hud._spawn_pending, hud._spawn_boss = nil, nil
+        if #places == 0 then return end
+        local unique, seen = {}, {}
+        for _, s in ipairs(places) do
+          if not seen[s] then seen[s] = true; table.insert(unique, s) end
+        end
+        access.say((boss and 'elite arriving at the ' or 'enemies at the ') .. describe.list(unique), {interrupt = false})
+      end)
     end, 'access_spawn_announce')
   end
 end
@@ -375,25 +542,86 @@ function hud.on_enemy_projectile(p)
 end
 
 
+-- An exploder has died and left a mine that will burst into a ring of shots
+-- in about two seconds. On screen it is a small blinking dot.
+function hud.on_mine(m)
+  local p, a = head()
+  if not p or not a or not playable() then return end
+  local d, b = range_and_bearing(p, m)
+  access.audio.play('mine', math.sin(b), 1, 1)
+  access.say('mine ' .. describe.distance(d) .. ' at ' .. describe.clock(b), {interrupt = false})
+end
+
+
+-- Every boss attack is drawn as lightning from the boss to its targets. Once
+-- per volley, say what the elite just did.
+local BOSS_ATTACKS = {
+  speed_booster = 'elite speeds up its allies',
+  forcer = 'elite flings enemies at you',
+  swarmer = 'elite bursts an ally into critters',
+}
+
+function hud.on_boss_attack(boss, color)
+  if not playable() then return end
+  local now = love.timer.getTime()
+  if hud._last_boss_attack and (now - hud._last_boss_attack) < 1 then return end
+  hud._last_boss_attack = now
+  local text = BOSS_ATTACKS[boss.boss]
+  if boss.boss == 'randomizer' then
+    if color == green[0] then text = BOSS_ATTACKS.speed_booster
+    elseif color == yellow[0] then text = BOSS_ATTACKS.forcer
+    elseif color == purple[0] then text = BOSS_ATTACKS.swarmer
+    elseif color == blue[0] then text = 'elite detonates an ally into a ring of shots' end
+  end
+  -- The exploder boss plants mines, and every mine already announces itself.
+  if text then access.say(text, {interrupt = false}) end
+end
+
+
+-- The snake has just bounced off a wall. A bounce turns you around in a way
+-- that is impossible to feel, so the new heading is spoken.
+function hud.on_wall_bounce(p)
+  local a = arena()
+  if not a or not playable() or not hud.sonar_walls then return end
+  local now = love.timer.getTime()
+  if hud._last_bounce and (now - hud._last_bounce) < 0.7 then return end
+  hud._last_bounce = now
+  access.say('heading ' .. describe.compass(p.r), {interrupt = false})
+end
+
+
 function hud.on_arena_enter(a)
   hud.reset()
   watched.wave = a.wave
   watched.start_time = a.start_time
-  local parts = {'Round ' .. tostring(a.level)}
+  remember_party(a)
+
+  local total = 25 * ((a.loop or 0) + 1)
+  local parts = {'Round ' .. tostring(a.level) .. ' of ' .. total}
   if a.boss_level then
     local boss = level_to_boss and level_to_boss[a.level]
-    table.insert(parts, 'elite round' .. (boss and (', ' .. describe.title(boss)) or ''))
+    table.insert(parts, 'elite round, ' .. describe.boss_name(boss))
   elseif a.max_waves then
     table.insert(parts, describe.count(a.max_waves, 'wave'))
   end
   table.insert(parts, describe.count(#(a.units or {}), 'hero', 'heroes'))
+  local level = a.level - 25 * (a.loop or 0)
+  if level % 3 == 0 and a.level % 25 ~= 0 and #(a.passives or {}) < 8 then
+    table.insert(parts, 'item choice after this round')
+  end
   access.say(table.concat(parts, ', ') .. '. Get ready.', {interrupt = true})
+
+  if a.level == 1 then
+    access.say('Steer with A and D or the arrow keys. The snake never stops. ' ..
+      'Pings are enemies, bright ahead and dull behind; a wooden knock is the wall ahead. ' ..
+      'Press F1 for the keys and F5 for the guide.', {interrupt = false})
+  end
 end
 
 
 function hud.on_die(a)
   access.say('You died on round ' .. tostring(a.level) ..
-    '. Press R to restart, or escape for the menu.', {interrupt = true, priority = true})
+    '. Tab reviews your build, R restarts the run, escape opens the menu.', {interrupt = true, priority = true})
 end
 
 
@@ -404,6 +632,15 @@ end
 
 -- ---------------------------------------------------------------- reports --
 
+local function boss_line(p, a)
+  local boss = a.boss
+  if not boss or boss.dead then return nil end
+  local d, b = range_and_bearing(p, boss)
+  local pct = (boss.max_hp and boss.max_hp > 0) and math.floor((boss.hp / boss.max_hp) * 100 + 0.5) or 0
+  return 'elite ' .. pct .. ' percent, ' .. describe.distance(d) .. ' at ' .. describe.clock(b)
+end
+
+
 function hud.report_status()
   local a = arena()
   if not a then
@@ -411,19 +648,24 @@ function hud.report_status()
     -- the run, and what can I afford.
     local st = main and main.current
     if st and st.is and st:is(BuyScreen) then
-      access.say('Shop, round ' .. tostring(st.level) .. ', ' .. tostring(gold) .. ' gold, party ' ..
-        tostring(#(st.units or {})) .. ' of ' .. tostring(max_units) ..
-        ', shop level ' .. tostring(st.shop_level), {interrupt = true})
+      local parts = {'Shop, round ' .. tostring(st.level) .. ' of ' .. 25 * ((st.loop or 0) + 1)}
+      local kind = describe.round_type(st.level, st.loop)
+      if kind then table.insert(parts, kind) end
+      table.insert(parts, tostring(gold) .. ' gold')
+      table.insert(parts, 'party ' .. tostring(#(st.units or {})) .. ' of ' .. tostring(max_units))
+      table.insert(parts, 'shop level ' .. tostring(st.shop_level))
+      if st.locked then table.insert(parts, 'shop locked') end
+      access.say(table.concat(parts, ', '), {interrupt = true})
     else
       access.say('main menu', {interrupt = true})
     end
     return
   end
-  local parts = {'Round ' .. tostring(a.level)}
+  local parts = {'Round ' .. tostring(a.level) .. ' of ' .. 25 * ((a.loop or 0) + 1)}
   if a.start_time and a.start_time > 0 then
     table.insert(parts, 'starting in ' .. a.start_time)
   elseif a.boss_level then
-    table.insert(parts, a.boss and not a.boss.dead and 'elite alive' or 'elite down')
+    table.insert(parts, a.boss and not a.boss.dead and 'elite alive' or (a.boss and 'elite down' or 'elite not yet here'))
   elseif a.wave and a.max_waves then
     table.insert(parts, 'wave ' .. math.max(1, math.min(a.wave, a.max_waves)) .. ' of ' .. a.max_waves)
   end
@@ -431,6 +673,7 @@ function hud.report_status()
   local frac = party_health(a)
   if frac then table.insert(parts, 'party health ' .. math.floor(frac * 100 + 0.5) .. ' percent') end
   table.insert(parts, tostring(gold) .. ' gold')
+  if (a.gold_picked_up or 0) > 0 then table.insert(parts, a.gold_picked_up .. ' picked up this round') end
   access.say(table.concat(parts, ', '), {interrupt = true})
 end
 
@@ -467,25 +710,32 @@ function hud.report_enemies()
   local parts = {#cache.enemies .. (#cache.enemies == 1 and ' enemy' or ' enemies')}
   -- A quadrant census first: it is what tells you which way to turn.
   local sectors = {ahead = 0, right = 0, behind = 0, left = 0}
+  local kinds = {}
   for _, e in ipairs(cache.enemies) do
     local b, ab = e.b, math.abs(e.b)
     if ab < math.pi / 4 then sectors.ahead = sectors.ahead + 1
     elseif ab > 3 * math.pi / 4 then sectors.behind = sectors.behind + 1
     elseif b > 0 then sectors.right = sectors.right + 1
     else sectors.left = sectors.left + 1 end
+    local k = describe.enemy_kind(e.o)
+    if k ~= 'enemy' and k ~= 'elite' then kinds[k] = (kinds[k] or 0) + 1 end
   end
   local census = {}
+  local SECTOR_NAMES = {ahead = 'ahead', right = 'on your right', behind = 'behind', left = 'on your left'}
   for _, key in ipairs({'ahead', 'right', 'behind', 'left'}) do
-    if sectors[key] > 0 then table.insert(census, sectors[key] .. ' ' .. key) end
+    if sectors[key] > 0 then table.insert(census, sectors[key] .. ' ' .. SECTOR_NAMES[key]) end
   end
   table.insert(parts, describe.list(census))
+  local specials = {}
+  for k, n in pairs(kinds) do table.insert(specials, describe.count(n, k)) end
+  table.sort(specials)
+  if #specials > 0 then table.insert(parts, 'including ' .. describe.list(specials)) end
   local n = cache.enemies[1]
-  table.insert(parts, 'nearest ' .. describe.distance(n.d) .. ' at ' .. describe.clock(n.b))
-  if a.boss and not a.boss.dead then
-    local b = relative_bearing(p, a.boss.x, a.boss.y)
-    local d = math.sqrt((a.boss.x - p.x) ^ 2 + (a.boss.y - p.y) ^ 2)
-    table.insert(parts, 'elite ' .. describe.distance(d) .. ' at ' .. describe.clock(b))
-  end
+  local kind = describe.enemy_kind(n.o)
+  local nearest = n.o.boss and 'the elite' or ((kind:find('^[aeiou]') and 'an ' or 'a ') .. kind)
+  table.insert(parts, 'nearest is ' .. nearest .. ', ' .. describe.distance(n.d) .. ' at ' .. describe.clock(n.b))
+  local boss = boss_line(p, a)
+  if boss then table.insert(parts, boss) end
   access.say(table.concat(parts, '. '), {interrupt = true})
 end
 
@@ -527,17 +777,17 @@ function hud.report_party()
       for i, u in ipairs(units) do
         table.insert(parts, i .. ', ' .. describe.character(u.character, u.level))
       end
-      access.say('Party: ' .. table.concat(parts, '. '), {interrupt = true})
+      access.say('Party, head first: ' .. table.concat(parts, '. '), {interrupt = true})
     else
       access.say('no party yet', {interrupt = true})
     end
     return
   end
   local parts = {}
-  for _, u in ipairs(p:get_all_units()) do
+  for i, u in ipairs(p:get_all_units()) do
     if not u.dead then
       local pct = (u.max_hp and u.max_hp > 0) and math.floor((u.hp / u.max_hp) * 100 + 0.5) or 0
-      table.insert(parts, describe.character(u.character, u.level) .. ', ' .. pct .. ' percent')
+      table.insert(parts, describe.character(u.character, u.level) .. (i == 1 and ', head, ' or ', ') .. pct .. ' percent')
     end
   end
   if #parts == 0 then
@@ -570,7 +820,7 @@ function hud.report_build()
       local active = {}
       for class, level in pairs(levels) do
         if level and level > 0 then
-          table.insert(active, (class == 'conjurer' and 'builder' or describe.title(class)) .. ' ' .. level)
+          table.insert(active, describe.class_name(class) .. ' ' .. level)
         end
       end
       table.sort(active)
@@ -582,8 +832,7 @@ function hud.report_build()
   if passives and #passives > 0 then
     local items = {}
     for _, item in ipairs(passives) do
-      table.insert(items, (passive_names and passive_names[item.passive] or describe.title(item.passive)) ..
-        ' level ' .. tostring(item.level))
+      table.insert(items, describe.passive_name(item.passive) .. ' level ' .. tostring(item.level))
     end
     table.insert(parts, describe.count(#items, 'item') .. ': ' .. table.concat(items, ', '))
   end

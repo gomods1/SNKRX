@@ -8,6 +8,7 @@
 --   arena_hud.lua  spatial audio and reports for the arena itself
 --   audio.lua      the procedural stereo cues those reports lean on
 --   describe.lua   turning the game's markup and jargon into speech
+--   guide.lua      the in-game guide, spoken, plus how to play by ear
 --
 -- Everything here is defensive. An accessibility layer that can crash the game
 -- is worse than none at all, so each entry point is wrapped and each failure
@@ -20,6 +21,7 @@ access = {}
 require(path .. '.prism')
 require(path .. '.audio')
 require(path .. '.describe')
+require(path .. '.guide')
 require(path .. '.ui_nav')
 require(path .. '.arena_hud')
 
@@ -28,8 +30,11 @@ access.speech_enabled = true
 access.last_message = nil
 access.history = {}
 
+local describe = access.describe
+
 local last_text, last_time = nil, -100
-local watched_screen, watched_paused, watched_modal, watched_tutorial = nil, nil, nil, nil
+local watched_screen, watched_paused, watched_modal, watched_tutorial, watched_credits = nil, nil, nil, nil, nil
+local watched_gold, watched_locked = nil, nil
 local errors_reported = {}
 local first_announcement = true
 
@@ -44,7 +49,7 @@ function access.say(text, opts)
   if not text or text == '' then return end
   opts = opts or {}
 
-  text = access.describe.speech(text)
+  text = describe.speech(text)
   if text == '' then return end
 
   local now = love.timer.getTime()
@@ -132,6 +137,80 @@ end
 access.save_settings = save_settings
 
 
+-- ------------------------------------------------------------ shop helpers --
+
+-- The three cards for sale, numbered the way the buy keys are.
+local function describe_cards(st)
+  local cards = {}
+  for i = 1, 3 do
+    local card = st.cards and st.cards[i]
+    if card and card.unit and not card.dead then
+      local line = i .. ', ' .. describe.character(card.unit) .. ', ' .. tostring(card.cost or '?') .. ' gold'
+      if card.owned and card.owned_n then line = line .. ', owned' end
+      table.insert(cards, line .. ', ' .. describe.classes_of(card.unit))
+    end
+  end
+  if #cards == 0 then return 'Nothing for sale.' end
+  return 'For sale: ' .. table.concat(cards, '. ') .. '.'
+end
+
+
+local function describe_shop(st)
+  local parts = {'Shop'}
+  table.insert(parts, 'round ' .. tostring(st.level) .. ' of ' .. 25 * ((st.loop or 0) + 1))
+  local kind = describe.round_type(st.level, st.loop)
+  if kind then table.insert(parts, kind .. ' next') end
+  if (current_new_game_plus or 0) > 0 then table.insert(parts, 'new game plus ' .. current_new_game_plus) end
+  table.insert(parts, tostring(gold) .. ' gold')
+  table.insert(parts, 'party ' .. tostring(#(st.units or {})) .. ' of ' .. tostring(max_units))
+  table.insert(parts, 'shop level ' .. tostring(st.shop_level))
+  if st.locked then table.insert(parts, 'shop locked') end
+  local summary = table.concat(parts, ', ') .. '. ' .. describe_cards(st)
+  summary = summary .. ' Press 1, 2 or 3 to buy, tab to browse, R to reroll, G to start the round.'
+  if #(st.units or {}) == 0 then
+    summary = summary .. ' Your party is empty, so buy a hero first. F5 opens the guide.'
+  end
+  return summary
+end
+
+
+-- The four item cards after a hard round, numbered the way the pick keys are.
+local function announce_passive_choice(st, prefix)
+  local names = {}
+  for _, card in ipairs(st.cards or {}) do
+    if card and not card.dead and card.passive then
+      table.insert(names, tostring(card.card_i or (#names + 1)) .. ', ' .. describe.passive_name(card.passive))
+    end
+  end
+  local n = #names
+  local cost = '5 gold'
+  if st.ui and st.ui.objects then
+    for _, o in ipairs(st.ui.objects) do
+      if RerollButton and o.is and o:is(RerollButton) and not o.dead and o.free_reroll then cost = 'free' end
+    end
+  end
+  access.say((prefix or '') .. 'Choose one item. ' .. table.concat(names, '. ') ..
+    '. Press 1 to ' .. math.max(n, 1) .. ' to take one, tab to hear what each does. R rerolls, ' .. cost .. '.',
+    {interrupt = true, priority = true})
+end
+
+
+-- Selling goes through the game's own click handler, which knows the price
+-- but not what was sold. The navigation notes the name just before it clicks.
+local pending_sale = nil
+
+function access.pending_sale(name)
+  pending_sale = {name = name, time = love.timer.getTime()}
+end
+
+local function take_pending_sale()
+  local sale = pending_sale
+  pending_sale = nil
+  if sale and (love.timer.getTime() - sale.time) < 1 then return sale.name end
+  return nil
+end
+
+
 -- ------------------------------------------------------------------ hooks --
 
 -- Rather than scatter accessibility calls through the game's 400KB of logic,
@@ -144,7 +223,7 @@ local function install_hooks()
   InfoText.activate = function(self, text, ...)
     local result = activate(self, text, ...)
     if access.enabled then
-      local spoken = access.describe.lines(text)
+      local spoken = describe.lines(text)
       if spoken ~= '' then access.say(spoken, {interrupt = false}) end
     end
     return result
@@ -165,6 +244,40 @@ local function install_hooks()
     return result
   end
 
+  -- A mine is a blinking dot that turns into a ring of shots two seconds later.
+  if ExploderMine then
+    local mine_init = ExploderMine.init
+    ExploderMine.init = function(self, args)
+      local result = mine_init(self, args)
+      if access.enabled then pcall(access.hud.on_mine, self) end
+      return result
+    end
+  end
+
+  -- Every boss attack is drawn as lightning from the boss to its targets.
+  if LightningLine then
+    local lightning_init = LightningLine.init
+    LightningLine.init = function(self, args)
+      local result = lightning_init(self, args)
+      if access.enabled and args and args.src and args.src.boss then
+        pcall(access.hud.on_boss_attack, args.src, args.color)
+      end
+      return result
+    end
+  end
+
+  -- Bouncing off a wall turns the snake around; the new heading is spoken.
+  if Player and Player.on_collision_enter then
+    local collision = Player.on_collision_enter
+    Player.on_collision_enter = function(self, other, contact)
+      local result = collision(self, other, contact)
+      if access.enabled and self.leader and Wall and other and other.is and other:is(Wall) then
+        pcall(access.hud.on_wall_bounce, self)
+      end
+      return result
+    end
+  end
+
   local arena_enter = Arena.on_enter
   Arena.on_enter = function(self, ...)
     local result = arena_enter(self, ...)
@@ -182,14 +295,13 @@ local function install_hooks()
     return a, b, c
   end
 
+  -- Arena:quit hands out the round's gold on its way through, and the gold
+  -- hook below queues that line. "Arena clear" has to go first, or it would
+  -- cut the gold breakdown off.
   local arena_quit = Arena.quit
   Arena.quit = function(self, ...)
-    local was_quitting = self.quitting
-    local result = arena_quit(self, ...)
-    if access.enabled and not was_quitting and self.quitting and not self.died then
-      pcall(access.hud.on_clear, self)
-    end
-    return result
+    if access.enabled and not self.quitting and not self.died then pcall(access.hud.on_clear, self) end
+    return arena_quit(self, ...)
   end
 
   -- Buying is bound to the number keys as well as to clicks, and neither path
@@ -206,7 +318,7 @@ local function install_hooks()
     local bought = buy(self, character, i)
 
     if access.enabled then
-      local name = access.describe.character(character)
+      local name = describe.character(character)
       if bought then
         local level_after = 0
         for _, u in ipairs(self.units or {}) do
@@ -215,9 +327,12 @@ local function install_hooks()
         local line = name .. ' bought for ' .. (gold_before - gold) .. ' gold'
         if level_after > level_before and level_before > 0 then
           line = line .. '. ' .. name .. ' is now level ' .. level_after
+        elseif level_before > 0 then
+          line = line .. ', copy added'
         end
         access.say(line .. '. ' .. gold .. ' gold left, party ' ..
           #(self.units or {}) .. ' of ' .. tostring(max_units), {interrupt = true, priority = true})
+        access._spoken_gold = gold
       elseif gold < (character_tiers[character] or 0) then
         -- The other two failure cases (party full, unit maxed) already raise
         -- an InfoText, which the tooltip hook speaks.
@@ -232,10 +347,42 @@ local function install_hooks()
   BuyScreen.gain_gold = function(self, amount, ...)
     local result = shop_gain_gold(self, amount, ...)
     if access.enabled then
-      access.say('sold for ' .. tostring(amount) .. ' gold, ' .. tostring(gold) .. ' gold total',
-        {interrupt = true, priority = true})
+      local what = take_pending_sale()
+      access.say((what and (what .. ' sold for ') or 'sold for ') .. tostring(amount) .. ' gold, ' ..
+        tostring(gold) .. ' gold total', {interrupt = true, priority = true})
+      access._spoken_gold = gold
     end
     return result
+  end
+
+  -- A reroll replaces all three cards at once, silently.
+  local set_cards = BuyScreen.set_cards
+  BuyScreen.set_cards = function(self, shop_level, dont_spawn_effect, first_call)
+    local result = set_cards(self, shop_level, dont_spawn_effect, first_call)
+    if access.enabled and not first_call then
+      access.say('Rerolled. ' .. describe_cards(self), {interrupt = true, priority = true})
+    end
+    return result
+  end
+
+  -- Likewise the four item cards after a hard round.
+  local set_passives = Arena.set_passives
+  Arena.set_passives = function(self, from_reroll, ...)
+    local result = set_passives(self, from_reroll, ...)
+    if access.enabled and from_reroll and self.choosing_passives then
+      pcall(announce_passive_choice, self, 'Rerolled. ')
+    end
+    return result
+  end
+
+  -- Taking an item hands the other three back to the pool; the one kept is
+  -- the card that is not returned.
+  local restore = Arena.restore_passives_to_pool
+  Arena.restore_passives_to_pool = function(self, j, ...)
+    if access.enabled and j and j > 0 and self.cards and self.cards[j] and self.cards[j].passive then
+      access.say(describe.passive_name(self.cards[j].passive) .. ' taken', {interrupt = true, priority = true})
+    end
+    return restore(self, j, ...)
   end
 
   -- The end-of-round gold breakdown is animated into a transition circle that
@@ -256,28 +403,7 @@ end
 
 -- --------------------------------------------------------- screen changes --
 
-local function describe_shop(st)
-  local parts = {'Shop'}
-  table.insert(parts, 'round ' .. tostring(st.level))
-  table.insert(parts, tostring(gold) .. ' gold')
-  table.insert(parts, 'party ' .. tostring(#(st.units or {})) .. ' of ' .. tostring(max_units))
-  table.insert(parts, 'shop level ' .. tostring(st.shop_level))
-  local summary = table.concat(parts, ', ') .. '.'
-
-  local cards = {}
-  for i = 1, 3 do
-    local card = st.cards and st.cards[i]
-    if card and card.unit then
-      table.insert(cards, i .. ', ' .. access.describe.character(card.unit) ..
-        ', ' .. tostring(card.cost or '?') .. ' gold, ' .. access.describe.classes_of(card.unit))
-    end
-  end
-  if #cards > 0 then summary = summary .. ' For sale: ' .. table.concat(cards, '. ') .. '.' end
-  return summary .. ' Press 1, 2 or 3 to buy, tab to browse, G to start the round.'
-end
-
-
-local function announce_screen(st)
+local function announce_screen(st, previous)
   if st == nil then return end
   local prefix = ''
   if first_announcement then
@@ -286,13 +412,16 @@ local function announce_screen(st)
     -- but a player who does not want it deserves to be told how to stop it.
     -- Once they have touched any accessibility setting, drop the reminder.
     prefix = state.access_configured and 'SNKRX. '
-      or 'SNKRX. Accessibility is on. Press F2 to turn it off. '
+      or 'SNKRX. Accessibility is on. Press F2 to turn it off, F1 for the keys, F5 for the guide. '
   end
   if st.is and st:is(MainMenu) then
     access.say(prefix .. 'Main menu. Tab to move, enter to choose, F1 for the accessibility keys.',
       {interrupt = true})
   elseif st.is and st:is(BuyScreen) then
-    access.say(prefix .. describe_shop(st), {interrupt = true})
+    -- Coming out of a fight, the round's gold breakdown may still be being
+    -- read; queue behind it rather than cut it off.
+    local from_arena = previous and previous.is and previous:is(Arena)
+    access.say(prefix .. describe_shop(st), {interrupt = not from_arena})
   elseif prefix ~= '' then
     access.say(prefix .. 'Press F1 for the accessibility keys.', {interrupt = true})
   end
@@ -301,42 +430,77 @@ local function announce_screen(st)
 end
 
 
+local function watch_shop(st)
+  -- Gold changes that no hook has already spoken: shop experience, item
+  -- experience, selling a shop level.
+  if watched_gold == nil then watched_gold = gold; access._spoken_gold = gold end
+  if gold ~= watched_gold then
+    watched_gold = gold
+    if access._spoken_gold ~= gold then
+      access._spoken_gold = gold
+      access.say(tostring(gold) .. ' gold', {interrupt = false})
+    end
+  end
+
+  local locked = st.locked and true or false
+  if watched_locked == nil then watched_locked = locked end
+  if locked ~= watched_locked then
+    watched_locked = locked
+    access.say(locked and 'shop locked, these cards stay for next round' or 'shop unlocked',
+      {interrupt = true, priority = true})
+  end
+end
+
+
 local function watch_screen()
   local st = main and main.current
   if st ~= watched_screen then
+    local previous = watched_screen
     watched_screen = st
-    watched_paused, watched_modal, watched_tutorial = nil, nil, nil
-    announce_screen(st)
+    watched_paused, watched_modal, watched_tutorial, watched_credits = nil, nil, nil, nil
+    watched_gold, watched_locked = nil, nil
+    announce_screen(st, previous)
     return
   end
   if not st then return end
 
-  if st.paused ~= watched_paused then
-    watched_paused = st.paused
-    if st.paused then
+  -- The game's flags start out nil and become false once cleared, so every
+  -- one of them is normalised before comparing.
+  local paused = st.paused and true or false
+  if watched_paused == nil then watched_paused = paused end
+  if paused ~= watched_paused then
+    watched_paused = paused
+    if paused then
       access.say('Options. Tab to move, enter to change, backspace to change the other way. F1 for the accessibility keys.',
         {interrupt = true})
-    elseif watched_paused ~= nil then
+    else
       access.say('resumed', {interrupt = true})
     end
   end
 
-  -- The shop's guide is a wall of text with no interactive parts, so nothing
-  -- else here would ever read it out.
-  if st.in_tutorial ~= watched_tutorial then
-    watched_tutorial = st.in_tutorial
-    if st.in_tutorial then
-      local function lines_of(t)
-        if not t then return nil end
-        return t.lines or (t.text and t.text.text_data)
-      end
-      local parts = {}
-      for _, source in ipairs({st.title_text, st.tutorial_text}) do
-        local spoken = access.describe.lines(lines_of(source))
-        if spoken and spoken ~= '' then table.insert(parts, spoken) end
-      end
-      table.insert(parts, 'Press escape to close the guide.')
-      access.say(table.concat(parts, ' '), {interrupt = true})
+  -- The shop's guide is a wall of text with two diagrams and no interactive
+  -- parts, so nothing else here would ever read it out.
+  local tutorial = st.in_tutorial and true or false
+  if watched_tutorial == nil then watched_tutorial = tutorial end
+  if tutorial ~= watched_tutorial then
+    watched_tutorial = tutorial
+    if tutorial then
+      pcall(access.guide.speak, st)
+    else
+      access.say('guide closed', {interrupt = true})
+    end
+  end
+
+  if st.is and st:is(BuyScreen) and not st.transitioning then watch_shop(st) end
+
+  local credits = st.in_credits and true or false
+  if watched_credits == nil then watched_credits = credits end
+  if credits ~= watched_credits then
+    watched_credits = credits
+    if credits then
+      access.say('Credits. Tab to browse the links, escape to close.', {interrupt = true})
+    else
+      access.say('credits closed', {interrupt = true})
     end
   end
 
@@ -348,11 +512,13 @@ local function watch_screen()
   if modal ~= watched_modal then
     watched_modal = modal
     if modal == 'passives' then
-      local n = st.cards and #st.cards or 0
-      access.say('Choose one item. ' .. n .. ' on offer. Press 1 to ' .. math.max(n, 1) ..
-        ' to pick, or tab to browse. R rerolls.', {interrupt = true})
+      pcall(announce_passive_choice, st)
     elseif modal == 'won' then
-      access.say('You won the run. Congratulations.', {interrupt = true})
+      local ng = current_new_game_plus or 0
+      access.say('Congratulations, you beat the game. Round ' .. tostring(st.level) .. ' cleared. ' ..
+        'New game plus ' .. ng .. ' is unlocked. Tab to browse: loop continues this run at higher difficulty ' ..
+        'with a bigger party, new game plus starts a fresh harder run, and the credits. R restarts from round 1.',
+        {interrupt = false, priority = true})
     end
   end
 end
@@ -362,13 +528,13 @@ end
 
 local HELP = {
   'Accessibility keys.',
-  'Anywhere: F1 this help. F2 turn accessibility off or on. F3 speech on or off. F4 cue volume. M repeat the last message. Comma and full stop step back and forward through everything that has been said.',
-  'Menus and shop: tab and shift tab to move, arrow keys also move, enter or space to choose, backspace for the secondary action such as selling.',
-  'Shop only: 1, 2 and 3 buy a card, G starts the round, page up and page down reorder the selected party member, Y reads your build.',
-  'Arena: Q status, W position and heading, T enemies, G loose gold and healing orbs, H party health, Y your build.',
-  'Arena sound: a bright ping is an enemy in front of you, a low dull ping is an enemy behind you, a fast rattle is an enemy about to touch you. A buzz is a shot flying at you. A wooden knock is the wall you are heading into, getting faster as you close in. A soft low pad on one side means you are running along that wall. Bells are gold and healing orbs. A wobbling tone marks a spot where enemies are about to appear.',
+  'Anywhere: F1 this help. F2 accessibility off or on. F3 speech on or off. F4 cue volume. F5 the game guide. M repeats the last message. Comma and full stop step back and forward through everything that has been said.',
+  'Menus and shop: tab and shift tab move, arrow keys also move when no snake is being steered, home and end jump to the first and last control, enter or space chooses, backspace is the secondary action such as selling.',
+  'Shop only: 1, 2 and 3 buy a card, R rerolls the shop, G starts the round, page up and page down move the selected party member forward or back in the snake, shift backspace sells one spare copy of the selected hero. Q reads the round and gold, H reads the party, Y reads your build.',
+  'Arena: A or left arrow turns left, D or right arrow turns right. Q status, W position and heading, T enemies, G loose gold and healing orbs, H every hero\'s health, Y your build. Escape opens the options, where R restarts the run.',
+  'Arena sound: a bright ping is an enemy in front of you, a low dull ping is an enemy behind you, a fast rattle is an enemy about to touch you. A slow heavy pulse is the elite. A buzz is a shot flying at you. A fluttering tone is a headbutter winding up. A sharp tick is a mine. A wooden knock is the wall you are heading into, getting faster as you close in. A soft low pad on one side means you are running along that wall. Bells are gold and healing orbs. A wobbling tone marks a spot where enemies are about to appear.',
   'Arena toggles: F enemy sonar, V wall sonar, C pickup sonar.',
-  'Steering: A or left arrow turns left, D or right arrow turns right. Escape opens the options.',
+  'Choosing an item: 1 to 4 take a card, R rerolls, tab browses.',
 }
 
 function access.help()
@@ -408,7 +574,37 @@ function access.toggle()
 end
 
 
+-- F5: in the shop this opens the game's own guide screen, which is then read
+-- with its diagrams described; anywhere else the same guide is simply spoken.
+local function open_guide()
+  local st = main and main.current
+  if st and st.is and st:is(BuyScreen) and not st.paused and not st.transitioning then
+    if st.in_tutorial then
+      pcall(access.guide.speak, st)
+    elseif st.tutorial_button and st.tutorial_button.action then
+      pcall(st.tutorial_button.action, st.tutorial_button)
+    else
+      pcall(access.guide.speak, nil)
+    end
+  else
+    pcall(access.guide.speak, nil)
+  end
+end
+
+
 local function handle_hotkeys()
+  -- The shop tests Escape twice in one frame: once to close the guide, then
+  -- again, with the guide now closed, to open the options. Close the guide
+  -- here and swallow the key so that only the first half happens.
+  if pressed('escape') then
+    local st = main and main.current
+    if st and st.in_tutorial and st.quit_tutorial then
+      pcall(st.quit_tutorial, st)
+      input.escape.pressed = false
+      return true
+    end
+  end
+
   if pressed('f1') then access.help() return true end
 
   if pressed('f2') then access.toggle() return true end
@@ -433,6 +629,8 @@ local function handle_hotkeys()
     save_settings()
     return true
   end
+
+  if pressed('f5') then open_guide() return true end
 
   if pressed('m') then access.repeat_last() return true end
   if pressed(',') then access.history_step(-1) return true end
@@ -567,7 +765,8 @@ function access.init()
   -- input:bind_all misses a couple of keys the navigation uses.
   if not input['end'] then pcall(input.bind, input, 'end', {'end'}) end
 
-  pcall(install_hooks)
+  local hooks_ok, err = pcall(install_hooks)
+  if not hooks_ok then print('[accessibility] hooks failed: ' .. tostring(err)) end
 end
 
 

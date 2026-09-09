@@ -4,3 +4,6 @@ builds/
 # Local dev stub that shadows engine/love/luasteam.dll so the game runs from a
 # checkout without a Steam client. Must not ship: it disables achievements.
 luasteam.lua
+
+# Built output: the compiled game, plus dist/manual.html from build_manual.sh.
+dist/

@@ -2,7 +2,7 @@
 --
 -- Two jobs live here:
 --   1. Sanitising SNKRX's rich-text markup into plain speech.
---   2. Naming things: UI widgets, directions, distances, positions.
+--   2. Naming things: UI widgets, directions, distances, positions, enemies.
 --
 -- Every focusable widget returns a short label plus an optional longer detail.
 -- The label is spoken immediately and interrupts; the detail is queued behind
@@ -44,9 +44,26 @@ local EXPANSIONS = {
   {'_', ' '},
 }
 
+
+-- Most screen readers run at a punctuation level that swallows slashes and
+-- signs, so "XP: 1/4" is heard as "XP 1 4", "+25/+50" as "25 50" and "4x" as
+-- "4 x". The game leans on all three, so they are spelled out.
+local function expand_symbols(text)
+  text = text:gsub('XP:? (%d+)/(%d+)', 'experience %1 of %2')
+  text = text:gsub('(%d%%?)/([%+%-]?%d)', '%1 or %2')
+  text = text:gsub('(%a)/(%a)', '%1 or %2')
+  text = text:gsub('%+(%d)', 'plus %1')
+  text = text:gsub('^%-(%d)', 'minus %1')
+  text = text:gsub('([%s,%(])%-(%d)', '%1minus %2')
+  text = text:gsub('(%d)x%f[%A]', '%1 times')
+  return text
+end
+
+
 function describe.speech(text)
   text = describe.strip(text)
   for _, e in ipairs(EXPANSIONS) do text = text:gsub(e[1], e[2]) end
+  text = expand_symbols(text)
   text = text:gsub('%s+', ' ')
   -- Joined fragments regularly collide into ".." which some voices pause on.
   text = text:gsub('%.%s*%.', '.')
@@ -73,6 +90,13 @@ function describe.title(s)
   if type(s) ~= 'string' or s == '' then return '' end
   s = s:gsub('_', ' ')
   return (s:gsub('^%l', string.upper))
+end
+
+
+-- The game calls the class "conjurer" in its data and "builder" on screen.
+function describe.class_name(class)
+  if class == 'conjurer' then return 'Builder' end
+  return describe.title(class)
 end
 
 
@@ -187,9 +211,7 @@ function describe.classes_of(character)
   local classes = character_classes and character_classes[character]
   if not classes then return '' end
   local out = {}
-  for _, c in ipairs(classes) do
-    table.insert(out, c == 'conjurer' and 'builder' or describe.title(c))
-  end
+  for _, c in ipairs(classes) do table.insert(out, describe.class_name(c)) end
   return table.concat(out, ', ')
 end
 
@@ -221,9 +243,13 @@ function describe.character_detail(character, level)
 end
 
 
+function describe.passive_name(passive)
+  return passive_names and passive_names[passive] or describe.title(passive)
+end
+
+
 function describe.passive(passive, level, xp)
-  local name = passive_names and passive_names[passive] or describe.title(passive)
-  local parts = {name}
+  local parts = {describe.passive_name(passive)}
   if level then table.insert(parts, 'level ' .. level) end
   local d = passive_descriptions_level and passive_descriptions_level[passive]
   local text
@@ -244,6 +270,37 @@ function describe.passive(passive, level, xp)
 end
 
 
+-- What kind of round a level is. Every sixth round (and every 25th) is an
+-- elite round with a boss; every third ends with an item choice.
+function describe.round_type(level, loop)
+  loop = loop or 0
+  if (level - 25 * loop) % 6 == 0 or level % 25 == 0 then return 'elite round'
+  elseif (level - 25 * loop) % 3 == 0 then return 'hard round' end
+  return nil
+end
+
+
+-- Enemies are told apart on screen by colour alone.
+function describe.enemy_kind(o)
+  if not o then return 'enemy' end
+  if o.boss then return 'elite' end
+  if o.speed_booster then return 'speed booster'
+  elseif o.exploder then return 'exploder'
+  elseif o.headbutter then return 'headbutter'
+  elseif o.tank then return 'tank'
+  elseif o.shooter then return 'shooter'
+  elseif o.spawner then return 'spawner' end
+  if EnemyCritter and o.is and o:is(EnemyCritter) then return 'critter' end
+  return 'enemy'
+end
+
+
+function describe.boss_name(boss)
+  if not boss then return 'elite' end
+  return describe.title(boss) .. ' elite'
+end
+
+
 -- --------------------------------------------------------------- widgets --
 
 local function is(o, class_name)
@@ -254,7 +311,13 @@ end
 
 -- A handful of buttons are labelled with a single glyph, which a screen reader
 -- can only read as punctuation.
-local ICON_BUTTONS = {['?'] = 'guide', ['R'] = 'restart run', ['x'] = 'close', ['X'] = 'close'}
+local ICON_BUTTONS = {['?'] = 'guide, F5', ['R'] = 'restart run, abandons the current run', ['x'] = 'close', ['X'] = 'close'}
+
+-- Buttons that leave the game for a web page deserve a warning.
+local LINK_BUTTONS = {
+  ['buy the soundtrack!'] = true, ['join the community discord!'] = true,
+  ['nimble quest'] = true, ['dota underlords'] = true,
+}
 
 
 -- Returns label, detail. The label is spoken first and interrupts whatever was
@@ -266,7 +329,7 @@ function describe.focusable(o)
   if is(o, 'ShopCard') then
     local cost = o.cost or (character_tiers and character_tiers[o.unit]) or '?'
     local label = describe.character(o.unit) .. ', ' .. cost .. ' gold'
-    if o.owned and o.owned_n then label = label .. ', owned ' .. o.owned_n end
+    if o.owned and o.owned_n then label = label .. ', ' .. describe.count(o.owned_n, 'copy', 'copies') .. ' owned' end
     local classes = describe.classes_of(o.unit)
     if classes ~= '' then label = label .. ', ' .. classes end
     -- The shop card has no hover tooltip of its own, so spell it out here.
@@ -275,6 +338,22 @@ function describe.focusable(o)
 
   if is(o, 'CharacterIcon') then
     return describe.character(o.character) .. ', shop card'
+  end
+
+  if is(o, 'TutorialCharacterPart') then
+    return 'example hero, ' .. describe.character(o.character, o.level)
+  end
+
+  if is(o, 'TutorialClassIcon') then
+    local label = 'example class icon, ' .. describe.class_name(o.class)
+    if class_set_numbers and class_set_numbers[o.class] then
+      local ok, i, j, k, owned = pcall(class_set_numbers[o.class], o.units or {})
+      if ok then
+        local level = (k and owned >= k and 3) or (owned >= j and 2) or (owned >= i and 1) or 0
+        label = label .. ', ' .. owned .. ' owned, bonus level ' .. level
+      end
+    end
+    return label
   end
 
   if is(o, 'CharacterPart') then
@@ -286,18 +365,31 @@ function describe.focusable(o)
       local ok, price = pcall(o.get_sale_price, o)
       if ok then label = label .. ', sells for ' .. price end
     end
+    -- Spare copies waiting to merge: the part of the level-up mechanic that is
+    -- otherwise only visible as small tiles beside the party member.
+    if o.reserve and o.level and o.level < 3 and not o.cant_click then
+      local r1, r2 = o.reserve[1] or 0, o.reserve[2] or 0
+      if o.level == 1 then
+        label = label .. ', ' .. r1 .. ' of 2 extra copies toward level 2'
+      else
+        label = label .. ', ' .. (r2 * 3 + r1) .. ' of 6 extra copies toward level 3'
+      end
+      if r1 + r2 > 0 then label = label .. ', shift backspace sells a spare copy' end
+    elseif o.level == 3 and not o.cant_click then
+      label = label .. ', max level'
+    end
     return label
   end
 
   if is(o, 'ClassIcon') then
-    local class = o.class == 'conjurer' and 'builder' or describe.title(o.class)
-    local label = class .. ' class'
+    local label = describe.class_name(o.class) .. ' class'
     if class_set_numbers and class_set_numbers[o.class] and o.units then
       local ok, i, j, k, owned = pcall(class_set_numbers[o.class], o.units)
       if ok then
-        local target = (k and owned < k and k) or (owned < j and j) or (owned < i and i)
+        local target = (owned < i and i) or (owned < j and j) or (k and owned < k and k) or nil
         label = label .. ', ' .. (owned or 0) .. ' owned'
-        if target then label = label .. ', next bonus at ' .. target end
+        if target then label = label .. ', next bonus at ' .. target
+        else label = label .. ', fully unlocked' end
       end
     end
     return label
@@ -307,35 +399,43 @@ function describe.focusable(o)
   -- text, which the InfoText hook speaks. Naming them twice is just noise, so
   -- these deliberately return a label and no detail.
   if is(o, 'ItemCard') then
-    return (passive_names and passive_names[o.passive] or describe.title(o.passive)) ..
-      ', level ' .. tostring(o.level)
+    local label = describe.passive_name(o.passive) .. ', level ' .. tostring(o.level)
+    if o.parent and is(o.parent, 'BuyScreen') then
+      if o.unlevellable or (o.level or 0) >= 3 then
+        label = label .. ', backspace sells'
+      else
+        label = label .. ', enter adds experience for 5 gold, backspace sells'
+      end
+    end
+    return label
   end
 
   if is(o, 'PassiveCard') then
-    return 'item choice ' .. (o.card_i or '?') .. ', ' ..
-      (passive_names and passive_names[o.passive] or describe.title(o.passive))
+    return 'item choice ' .. (o.card_i or '?') .. ', ' .. describe.passive_name(o.passive) ..
+      ', enter or ' .. (o.card_i or '?') .. ' to take it'
   end
 
   if is(o, 'GoButton') then
-    return 'go, start the round'
+    return 'go, start the round, G'
   end
 
   if is(o, 'RerollButton') then
     local cost = o.free_reroll and 0 or (o.parent and o.parent.is and o.parent:is(Arena) and 5 or 2)
-    return 'reroll, ' .. cost .. ' gold'
+    return 'reroll, ' .. cost .. ' gold, R'
   end
 
   if is(o, 'LockButton') then
-    return (o.parent and o.parent.locked) and 'unlock shop' or 'lock shop'
+    return (o.parent and o.parent.locked) and 'unlock shop, cards will change next round'
+      or 'lock shop, keep these cards for next round'
   end
 
   if is(o, 'LevelButton') then
     local lvl = o.parent and o.parent.shop_level or '?'
     return 'shop level ' .. lvl .. ', ' .. (o.shop_xp or 0) .. ' of ' .. (o.max_xp or 0) ..
-      ' experience. Enter to buy experience for 5 gold, backspace to sell a level for 10'
+      ' experience. Enter buys experience for 5 gold, backspace sells a level for 10'
   end
 
-  if is(o, 'RestartButton') then return 'restart run' end
+  if is(o, 'RestartButton') then return 'new game plus ' .. tostring(current_new_game_plus or 0) .. ', start a new harder run' end
 
   if o.button_text and ICON_BUTTONS[o.button_text] then return ICON_BUTTONS[o.button_text] end
 
@@ -343,7 +443,9 @@ function describe.focusable(o)
   if is(o, 'WishlistButton') then return 'wishlist on Steam, opens a browser' end
 
   if is(o, 'Button') then
-    return describe.speech(o.button_text or 'button')
+    local label = describe.speech(o.button_text or 'button')
+    if o.credits_button or LINK_BUTTONS[o.button_text] then label = label .. ', opens a browser' end
+    return label
   end
 
   -- Anything unrecognised still gets a usable name rather than silence.

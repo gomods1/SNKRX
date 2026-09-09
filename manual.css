@@ -1,0 +1,132 @@
+/* Styling for dist/manual.html, built from MANUAL.md by build_manual.sh.
+   Everything is embedded into the page by pandoc, so the manual is one file
+   that works offline, with no fonts or stylesheets to fetch. */
+
+:root {
+  color-scheme: light dark;
+  --bg: #fbfaf8;
+  --fg: #1c1b19;
+  --muted: #55534e;
+  --rule: #ddd9d2;
+  --accent: #8a3b12;
+  --code-bg: #efece6;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #16151a;
+    --fg: #e8e6e1;
+    --muted: #a9a59d;
+    --rule: #333138;
+    --accent: #f0a267;
+    --code-bg: #24222a;
+  }
+}
+
+html { background: var(--bg); }
+
+body {
+  margin: 0 auto;
+  padding: 2rem 1.25rem 5rem;
+  max-width: 42rem;
+  background: var(--bg);
+  color: var(--fg);
+  font: 1.05rem/1.6 Georgia, "Iowan Old Style", "Times New Roman", serif;
+}
+
+header#title-block-header { margin-bottom: 2.5rem; }
+
+h1.title {
+  margin: 0;
+  font-size: 2.1rem;
+  line-height: 1.2;
+}
+
+p.subtitle {
+  margin: .4rem 0 0;
+  color: var(--muted);
+  font-style: italic;
+}
+
+h1, h2, h3 {
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  line-height: 1.25;
+}
+
+h1 {
+  margin: 3rem 0 1rem;
+  padding-bottom: .3rem;
+  border-bottom: 2px solid var(--rule);
+  font-size: 1.6rem;
+}
+
+h2 { margin: 2.2rem 0 .6rem; font-size: 1.2rem; }
+
+a { color: var(--accent); }
+
+a:focus-visible, :focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+code {
+  padding: .1em .35em;
+  border-radius: .25em;
+  background: var(--code-bg);
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: .85em;
+  white-space: nowrap;
+}
+
+/* The tables are key lists and sound lists: two columns, the left one a key
+   name that should stay on one line while there is room for it. */
+table {
+  width: 100%;
+  margin: 1rem 0;
+  border-collapse: collapse;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: .95rem;
+}
+
+th, td {
+  padding: .45rem .6rem;
+  border-bottom: 1px solid var(--rule);
+  text-align: left;
+  vertical-align: top;
+}
+
+thead th { border-bottom: 2px solid var(--rule); }
+
+tbody tr:hover { background: var(--code-bg); }
+
+td:first-child { white-space: nowrap; }
+
+@media (max-width: 30rem) {
+  td:first-child { white-space: normal; }
+  code { white-space: normal; }
+}
+
+nav#TOC {
+  margin: 0 0 2rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--rule);
+  border-radius: .4rem;
+  background: var(--code-bg);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: .95rem;
+}
+
+nav#TOC h2 { margin: 0 0 .5rem; font-size: 1rem; }
+nav#TOC ul { margin: 0; padding-left: 1.2rem; }
+nav#TOC ul ul { padding-left: 1.1rem; }
+nav#TOC li { margin: .15rem 0; }
+
+ul, ol { padding-left: 1.4rem; }
+li { margin: .3rem 0; }
+
+@media print {
+  body { max-width: none; font-size: 11pt; }
+  nav#TOC { break-after: page; }
+  h1 { break-after: avoid; }
+  table { break-inside: avoid; }
+}
