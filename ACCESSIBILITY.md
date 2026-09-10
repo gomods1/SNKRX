@@ -263,6 +263,23 @@ accessibility on/off, screen reader on/off, audio cues on/off and cue volume.
 All of them persist between sessions, and so do the four arena toggles: `F`
 enemy sonar, `V` wall sonar, `C` pickup sonar and `B` tracking tones.
 
+## Language
+
+Everything this layer speaks is translated along with the rest of the game.
+`language` is on the same options row as mouse control, and it changes what is
+spoken as well as what is drawn: reports, announcements, widget labels, the
+guide, the help under `F1`, the sound descriptions and the tutorial briefings.
+
+Two things are worth knowing about how that works, in `accessibility/`:
+
+- `describe.lua` expands the game's abbreviations before speaking them, and
+  which abbreviations exist is a property of the language. The pairs live in
+  the locale files under `a11y.expansions` rather than in the code.
+- Groups are named in English inside `ui_nav.lua`'s layouts because those names
+  are also identifiers — a widget can put itself in a group by name, and the
+  sort uses them to keep two unnamed groups from interleaving. Only the spoken
+  form is translated, from `a11y.group.<name>` at the moment it is said.
+
 ## For maintainers
 
 The layer lives in `accessibility/` and is deliberately self-contained:
@@ -279,11 +296,11 @@ The layer lives in `accessibility/` and is deliberately self-contained:
 | `arena_hud.lua` | Sonar, combat announcements and spoken reports for the arena |
 
 The game itself is touched in five places: `require 'accessibility'` and two
-calls in `main.lua`, the options buttons in `open_options`/`close_options`, one
-line in `buy_screen.lua` so that `Enter` no longer starts a round from anywhere
-on the shop screen, one line in `engine/init.lua` to shut speech down cleanly,
-and the learn sounds button and its modal in `mainmenu.lua`. Everything else is
-done by wrapping methods at startup, so the game's own logic stays untouched.
+calls in `main.lua`, the options buttons in `build_options`/`destroy_option_widgets`,
+one line in `buy_screen.lua` so that `Enter` no longer starts a round from
+anywhere on the shop screen, one line in `engine/init.lua` to shut speech down
+cleanly, and the learn sounds button and its modal in `mainmenu.lua`. Everything
+else is done by wrapping methods at startup, so the game's logic stays untouched.
 The wrapped methods are the tooltip (`InfoText:activate`), the spawn marker,
 enemy projectiles, mines, boss lightning, the snake's wall collision, the end
 of a tutorial run, and the arena and shop methods that mark a round starting,

@@ -120,33 +120,25 @@ end
 
 -- ----------------------------------------------------------------- sounds --
 
+-- Each sound's name and description live in the locale files under
+-- a11y.sound.<key>.name and a11y.sound.<key>.detail; what stays here is the
+-- demo, which is the half of an entry that is not words.
 local SOUNDS = {
   {
-    name = 'stereo check',
-    detail = 'Five taps from your far left to your far right. Everything in the arena is panned this way, ' ..
-      'relative to the direction the snake is facing rather than to the screen: hard left means on your left, ' ..
-      'whichever way you happen to be pointing.',
+    key = 'stereo',
     demo = {duration = 2, steps = sweep('wall', 5, -1, 1, 0.35, 1.1, 1)},
   },
   {
-    name = 'enemy',
-    detail = 'The nearest enemy holds a tone for as long as it is there. Bright when it is in front of you, ' ..
-      'dull and low when it is behind, rising and pulsing faster as it closes. Turn until it is bright and ' ..
-      'centred and you are heading straight at it. This one passes you on the left, across the front, and ' ..
-      'away on the right.',
+    key = 'enemy',
     demo = {duration = 5.4, track = pass(VOICES.enemy, 5.4, 30, 240)},
   },
   {
-    name = 'enemy touching you',
-    detail = 'A hard, fast rattle over the top of the enemy tone. Something is within touching distance and ' ..
-      'is taking a hero\'s health for every moment it stays there. Turn away from it.',
+    key = 'enemy_close',
     demo = {duration = 1.7, track = hold(VOICES.enemy, 0.5, 20),
       steps = sweep('enemy_close', 9, 0.45, 0.45, 0.14, 1, 0.9)},
   },
   {
-    name = 'enemy shot',
-    detail = 'A buzz, panned to the side the shot is flying in from and deliberately unlike any enemy tone. ' ..
-      'Steer sideways and let it pass.',
+    key = 'enemy_shot',
     demo = {duration = 1.4, steps = {
       ping(0, 'incoming', -0.85, 0.95, 0.9),
       ping(0.35, 'incoming', -0.6, 1.05, 0.95),
@@ -154,61 +146,39 @@ local SOUNDS = {
     }},
   },
   {
-    name = 'headbutter charging',
-    detail = 'A fluttering tone: a headbutter has locked on to you and is winding up to charge in a straight ' ..
-      'line. Steer sideways rather than away and it will miss.',
+    key = 'headbutter',
     demo = {duration = 1.8, steps = {ping(0, 'charge', 0.55, 1, 1), ping(0.9, 'charge', 0.55, 1.05, 1)}},
   },
   {
-    name = 'mine',
-    detail = 'A sharp high tick where an exploder died. About a second later the mine bursts into a ring of ' ..
-      'shots, which is what follows the tick here.',
+    key = 'mine',
     demo = {duration = 2.2, steps = mine_demo()},
   },
   {
-    name = 'enemies arriving',
-    detail = 'A wobbling tone marks a spot where enemies are about to appear: once in the middle, then panned ' ..
-      'to where they will be. They arrive about a second later, and the place is spoken as well.',
+    key = 'arriving',
     demo = {duration = 1.6, steps = {ping(0, 'spawn', 0, 1, 0.9), ping(0.05, 'spawn', -0.65, 0.8, 0.9)}},
   },
   {
-    name = 'the elite',
-    detail = 'Every sixth round has an elite, and it holds a slow, heavy tone of its own so that you can find ' ..
-      'it under the swarm. Killing it and its escorts ends the round.',
+    key = 'elite',
     demo = {duration = 5.4, track = pass(VOICES.elite, 5.4, 45, 260)},
   },
   {
-    name = 'gold',
-    detail = 'Loose gold ticks like a flipped coin, four or five times a second, and goes on ticking until ' ..
-      'somebody picks it up. Run the head of the snake over it; whatever you collect is added to the ' ..
-      'round\'s reward. Both pickups are struck sounds that repeat, where the enemy and the elite hold a ' ..
-      'tone that never stops, so a thing worth chasing never sounds like a thing worth avoiding.',
+    key = 'gold',
     demo = {duration = 4.6, track = pass(VOICES.gold, 4.6, 25, 270)},
   },
   {
-    name = 'healing orb',
-    detail = 'A healing orb glows with a soft chime about twice a second, half the rate of gold\'s coin and ' ..
-      'with none of its metal, each one still ringing when the next arrives. Running over it heals your ' ..
-      'heroes, and it is worth crossing the whole arena for.',
+    key = 'orb',
     demo = {duration = 4.6, track = pass(VOICES.orb, 4.6, 25, 270)},
   },
   {
-    name = 'wall ahead',
-    detail = 'A dry wooden knock means a wall is straight ahead on your current heading. It starts about ' ..
-      'seven steps out and gets faster and higher as you close in. Hitting it bounces you off, and your new ' ..
-      'heading is spoken.',
+    key = 'wall_ahead',
     demo = {duration = wall_duration, steps = wall_steps},
   },
   {
-    name = 'wall beside you',
-    detail = 'A soft low pad on one side means you are running along that wall. It is not a warning, only a ' ..
-      'way of staying oriented while you hug an edge.',
+    key = 'wall_beside',
     demo = {duration = 1.8, steps = sweep('edge', 4, -0.9, -0.9, 0.45, 1, 0.8)},
   },
   {
-    name = 'hero lost',
-    detail = 'A descending tone: one of your heroes has died and left the snake. The hero is named too, and ' ..
-      'so is whoever becomes the new head.',
+    key = 'hero_lost',
     demo = {duration = 1.2, steps = {ping(0, 'unit_down', 0, 1, 1)}},
   },
 }
@@ -230,8 +200,7 @@ end
 local function play(entry)
   stop_demo()
   if not access.audio.enabled then
-    access.say('audio cues are switched off. Turn them back on in the options, or press F4 to raise the cue volume.',
-      {interrupt = true, priority = true})
+    access.say(T('a11y.sound.cues_off'), {interrupt = true, priority = true})
     return
   end
   playing = {t = 0, i = 1, demo = entry.demo}
@@ -284,18 +253,19 @@ function lab.open(st)
   shown_detail = nil
 
   Text2{group = st.sound_lab, x = gw/2, y = 22,
-    lines = {{text = '[fg]learn sounds', font = fat_font, alignment = 'center'}}}
+    lines = {{text = '[fg]' .. T('ui.menu.learn_sounds'), font = fat_font, alignment = 'center'}}}
   Text2{group = st.sound_lab, x = gw/2, y = 44,
-    lines = {{text = '[bg10]arrow keys to browse, enter to play, tab for the back button',
+    lines = {{text = '[bg10]' .. T('ui.sound_lab.subtitle'),
       font = pixul_font, alignment = 'center'}}}
 
   local rows = math.ceil(#SOUNDS / #COLUMN_LEFT)
   for i, entry in ipairs(SOUNDS) do
     local column = math.min(#COLUMN_LEFT, math.ceil(i / rows))
     local row = i - (column - 1) * rows
-    local width = pixul_font:get_text_width(entry.name) + 8
+    local name = T('a11y.sound.' .. entry.key .. '.name')
+    local width = pixul_font:get_text_width(name) + 8
     local b = Button{group = st.sound_lab, x = COLUMN_LEFT[column] + width/2, y = ROW_TOP + (row - 1) * ROW_STEP,
-      force_update = true, button_text = entry.name, fg_color = 'bg10', bg_color = 'bg',
+      force_update = true, button_text = name, fg_color = 'bg10', bg_color = 'bg',
       action = function() play(entry) end}
     -- Reading order is stated outright: down the first column and then down the
     -- second, rather than zigzagging between them the way screen rows would.
@@ -303,20 +273,17 @@ function lab.open(st)
     -- reach the one control that is not a sound.
     b.a11y_order = i
     b.a11y_group = 'sounds'
-    b.a11y_label = entry.name
-    b.a11y_detail = entry.detail
+    b.a11y_label = name
+    b.a11y_detail = T('a11y.sound.' .. entry.key .. '.detail')
   end
 
   local back = Button{group = st.sound_lab, x = gw/2, y = BACK_Y, force_update = true,
-    button_text = 'back (esc)', fg_color = 'bg10', bg_color = 'bg', action = function() lab.close(st) end}
+    button_text = T('ui.tutorial.back'), fg_color = 'bg10', bg_color = 'bg', action = function() lab.close(st) end}
   back.a11y_order = #SOUNDS + 1
   back.a11y_group = 'controls'
-  back.a11y_label = 'back to the main menu'
+  back.a11y_label = T('a11y.tutorial.back_to_menu')
 
-  access.say('Learn sounds. ' .. #SOUNDS .. ' sounds, each one the way it is heard in the arena. ' ..
-    'The arrow keys move through the list, enter plays the one you are on, tab reaches the back button, ' ..
-    'and escape goes back.',
-    {interrupt = true, priority = true})
+  access.say(T('a11y.sound.list_intro', #SOUNDS), {interrupt = true, priority = true})
 end
 
 
@@ -334,7 +301,7 @@ function lab.close(st)
     st.sound_lab:destroy()
     st.sound_lab = nil
   end
-  access.say('Main menu.', {interrupt = true, priority = true})
+  access.say(T('a11y.screen.main_menu'), {interrupt = true, priority = true})
 end
 
 

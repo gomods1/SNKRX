@@ -154,7 +154,8 @@ LAYOUTS.options = {
   {name = 'accessibility', match = named('access_buttons')},
   {name = 'this run',      match = named('resume_button', 'restart_button')},
   {name = 'volume',        match = named('sfx_button', 'music_button')},
-  {name = 'game',          match = named('mouse_button', 'dark_transition_button', 'run_timer_button')},
+  {name = 'game',          match = named('mouse_button', 'dark_transition_button', 'run_timer_button',
+                                         'language_button')},
   {name = 'video',         match = named('video_button_1', 'video_button_2', 'video_button_3', 'video_button_4')},
   {name = 'effects',       match = named('screen_shake_button', 'cooldown_snake_button',
                                          'arrow_snake_button', 'screen_movement_button')},
@@ -384,9 +385,11 @@ function nav.speak_focus(interrupt)
   if not label then return end
 
   -- Announce the group only when crossing into a new one, like a landmark.
+  -- The layouts name their groups in English because those names are also
+  -- identifiers; the spoken form comes out of the locale under a11y.group.
   local prefix = ''
   if o.a11y_group_name and o.a11y_group_name ~= spoken_group then
-    prefix = o.a11y_group_name .. '. '
+    prefix = T('a11y.group.' .. o.a11y_group_name:gsub(' ', '_')) .. '. '
   end
   spoken_group = o.a11y_group_name
 
@@ -395,7 +398,7 @@ function nav.speak_focus(interrupt)
   local position = ''
   local group = nav.groups[nav.group_at(nav.index)]
   if group and group.last > group.first then
-    position = ', ' .. (nav.index - group.first + 1) .. ' of ' .. (group.last - group.first + 1)
+    position = ', ' .. T('a11y.nav.position', nav.index - group.first + 1, group.last - group.first + 1)
   end
   access.say(prefix .. label .. position, {interrupt = interrupt ~= false})
   if detail then access.say(detail, {interrupt = false}) end
@@ -420,7 +423,7 @@ end
 -- with nothing to move between.
 function nav.move(delta, across)
   if #nav.items == 0 then
-    access.say('nothing to select here', {interrupt = true})
+    access.say(T('a11y.nav.nothing_here'), {interrupt = true})
     return
   end
   if nav.index == 0 then
@@ -477,7 +480,7 @@ local function reorder_party(o, delta)
   if not from then return false end
   local to = from + delta
   if to < 1 or to > #parent.units then
-    access.say('already at the ' .. (delta < 0 and 'front' or 'back') .. ' of the party', {interrupt = true})
+    access.say(T(delta < 0 and 'a11y.nav.already_front' or 'a11y.nav.already_back'), {interrupt = true})
     return true
   end
   parent.units[from], parent.units[to] = parent.units[to], parent.units[from]
@@ -488,7 +491,7 @@ local function reorder_party(o, delta)
       parent.shop_level, parent.shop_xp, run_passive_pool, locked_state)
   end
   access.audio.play('gold', 0, 1 + delta * 0.15, 0.5)
-  access.say(access.describe.character(o.character, o.level) .. ' moved to slot ' .. to, {interrupt = true})
+  access.say(T('a11y.nav.moved_to_slot', access.describe.character(o.character, o.level), to), {interrupt = true})
   return true
 end
 
@@ -501,12 +504,12 @@ local function sell_reserve(o)
   if not parent or not parent.units or not o.i then return false end
   local part = o.parts and o.parts[#o.parts]
   if not part or part.dead then
-    access.say('no spare copies to sell', {interrupt = true})
+    access.say(T('a11y.nav.no_spare_copies'), {interrupt = true})
     return true
   end
   local ok, err = pcall(function()
     local unit = parent.units[o.i]
-    access.pending_sale(access.describe.character(part.character, part.level) .. ' spare copy')
+    access.pending_sale(T('a11y.nav.spare_copy_of', access.describe.character(part.character, part.level)))
     parent:gain_gold(part:get_sale_price())
     unit.reserve[part.level] = unit.reserve[part.level] - 1
     part:die()
@@ -525,13 +528,13 @@ end
 function nav.activate(secondary)
   local o = nav.focus
   if not o then
-    access.say('press tab to choose something first', {interrupt = true})
+    access.say(T('a11y.nav.press_tab'), {interrupt = true})
     return
   end
   -- A left click on a party unit begins a mouse drag that we can never finish
   -- from the keyboard, so it is replaced by the explicit reorder keys.
   if is(o, 'CharacterPart') and not secondary and not o.cant_click then
-    access.say('use page up and page down to reorder, backspace to sell', {interrupt = true})
+    access.say(T('a11y.nav.reorder_help'), {interrupt = true})
     return
   end
   -- Selling says what was sold, which the game's own gold line cannot know.

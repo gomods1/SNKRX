@@ -18,6 +18,12 @@ navigable and spoken through your screen reader, and the arena is narrated by
 panned audio cues. It is on by default; press `F1` in game for the key list, or
 see [ACCESSIBILITY.md](ACCESSIBILITY.md).
 
+### Languages
+
+English and Spanish, switched with `language` on the options screen. Everything
+is translated, including what the accessibility layer speaks. Adding a language
+is a file in [locales/](locales/README.md).
+
 ### Running
 
 Download this repository, `cd` into it and then run `engine/love/love.exe --console .`. You need to have Steam up to run it successfully.

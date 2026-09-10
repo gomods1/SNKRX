@@ -27,42 +27,30 @@ end
 
 -- A handful of the game's abbreviations are unreadable when spoken aloud, and
 -- its habit of separating clauses with a dash makes the voice say "dash".
-local EXPANSIONS = {
-  {'Lv%.(%d)', 'level %1'},
-  {'lv%.(%d)', 'level %1'},
-  {'NG%+', 'new game plus '},
-  {'aspd', 'attack speed'},
-  {'mvspd', 'movement speed'},
-  {'dmg', 'damage'},
-  {'dps', 'damage per second'},
-  {'DoT', 'damage over time'},
-  {'AoE', 'area of effect'},
-  {'HP', 'health'},
-  {'hp', 'health'},
-  {'%-%>', ' to '},
-  {'%s%-%s', ', '},
-  {'_', ' '},
-}
-
+-- Which abbreviations exist, and what they expand to, is a property of the
+-- language the text was written in, so the pairs live in the locale files under
+-- a11y.expansions.
 
 -- Most screen readers run at a punctuation level that swallows slashes and
 -- signs, so "XP: 1/4" is heard as "XP 1 4", "+25/+50" as "25 50" and "4x" as
--- "4 x". The game leans on all three, so they are spelled out.
+-- "4 x". The game leans on all three, so they are spelled out. The patterns
+-- match digits and punctuation and so are the same everywhere; only the words
+-- they expand into come from the locale.
 local function expand_symbols(text)
-  text = text:gsub('XP:? (%d+)/(%d+)', 'experience %1 of %2')
-  text = text:gsub('(%d%%?)/([%+%-]?%d)', '%1 or %2')
-  text = text:gsub('(%a)/(%a)', '%1 or %2')
-  text = text:gsub('%+(%d)', 'plus %1')
-  text = text:gsub('^%-(%d)', 'minus %1')
-  text = text:gsub('([%s,%(])%-(%d)', '%1minus %2')
-  text = text:gsub('(%d)x%f[%A]', '%1 times')
+  text = text:gsub('XP:? (%d+)/(%d+)', loc.get('a11y.expand.experience'))
+  text = text:gsub('(%d%%?)/([%+%-]?%d)', loc.get('a11y.expand.or_number'))
+  text = text:gsub('(%a)/(%a)', loc.get('a11y.expand.or_letter'))
+  text = text:gsub('%+(%d)', loc.get('a11y.expand.plus'))
+  text = text:gsub('^%-(%d)', loc.get('a11y.expand.minus_first'))
+  text = text:gsub('([%s,%(])%-(%d)', loc.get('a11y.expand.minus'))
+  text = text:gsub('(%d)x%f[%A]', loc.get('a11y.expand.times'))
   return text
 end
 
 
 function describe.speech(text)
   text = describe.strip(text)
-  for _, e in ipairs(EXPANSIONS) do text = text:gsub(e[1], e[2]) end
+  for _, e in ipairs(loc.table('a11y.expansions')) do text = text:gsub(e[1], e[2]) end
   text = expand_symbols(text)
   text = text:gsub('%s+', ' ')
   -- Joined fragments regularly collide into ".." which some voices pause on.
@@ -95,8 +83,7 @@ end
 
 -- The game calls the class "conjurer" in its data and "builder" on screen.
 function describe.class_name(class)
-  if class == 'conjurer' then return 'Builder' end
-  return describe.title(class)
+  return (class_names and class_names[class]) or describe.title(class)
 end
 
 
@@ -115,8 +102,8 @@ end
 
 function describe.distance(pixels)
   local s = describe.steps(pixels)
-  if s <= 1 then return 'point blank' end
-  return s .. ' steps'
+  if s <= 1 then return T('a11y.distance.point_blank') end
+  return loc.count(s, 'a11y.distance.steps')
 end
 
 
@@ -126,7 +113,7 @@ function describe.list(items)
   if #items == 1 then return items[1] end
   local head = {}
   for i = 1, #items - 1 do table.insert(head, items[i]) end
-  return table.concat(head, ', ') .. ' and ' .. items[#items]
+  return T('a11y.list_join', table.concat(head, ', '), items[#items])
 end
 
 
@@ -138,13 +125,11 @@ end
 
 
 -- Screen y grows downwards, so an angle of 0 points east and pi/2 points south.
-local COMPASS = {'east', 'south east', 'south', 'south west', 'west', 'north west', 'north', 'north east'}
-
 function describe.compass(r)
   local a = r % (2 * math.pi)
   if a < 0 then a = a + 2 * math.pi end
   local i = math.floor(a / (2 * math.pi) * 8 + 0.5) % 8
-  return COMPASS[i + 1]
+  return loc.table('a11y.compass')[i + 1] or ''
 end
 
 
@@ -155,7 +140,7 @@ function describe.clock(relative_bearing)
   if a < 0 then a = a + 2 * math.pi end
   local c = math.floor(a / (2 * math.pi) * 12 + 0.5) % 12
   if c == 0 then c = 12 end
-  return c .. " o'clock"
+  return T('a11y.clock', c)
 end
 
 
@@ -163,16 +148,16 @@ end
 function describe.side(relative_bearing)
   local b = describe.wrap_angle(relative_bearing)
   local a = math.abs(b)
-  if a < math.pi / 8 then return 'ahead'
-  elseif a > 7 * math.pi / 8 then return 'behind'
+  if a < math.pi / 8 then return T('a11y.side.ahead')
+  elseif a > 7 * math.pi / 8 then return T('a11y.side.behind')
   elseif b > 0 then
-    if a < 3 * math.pi / 8 then return 'ahead right'
-    elseif a < 5 * math.pi / 8 then return 'right'
-    else return 'behind right' end
+    if a < 3 * math.pi / 8 then return T('a11y.side.ahead_right')
+    elseif a < 5 * math.pi / 8 then return T('a11y.side.right')
+    else return T('a11y.side.behind_right') end
   else
-    if a < 3 * math.pi / 8 then return 'ahead left'
-    elseif a < 5 * math.pi / 8 then return 'left'
-    else return 'behind left' end
+    if a < 3 * math.pi / 8 then return T('a11y.side.ahead_left')
+    elseif a < 5 * math.pi / 8 then return T('a11y.side.left')
+    else return T('a11y.side.behind_left') end
   end
 end
 
@@ -180,21 +165,22 @@ end
 -- Where in the arena something is, in absolute terms. Used for orientation
 -- rather than for aiming.
 function describe.position(x, y, arena)
-  if not arena or not arena.x1 then return 'unknown' end
+  if not arena or not arena.x1 then return T('a11y.position.unknown') end
   local px = (x - arena.x1) / (arena.x2 - arena.x1)
   local py = (y - arena.y1) / (arena.y2 - arena.y1)
   local h = (px < 0.33 and 'left') or (px > 0.67 and 'right') or 'centre'
   local v = (py < 0.33 and 'top') or (py > 0.67 and 'bottom') or 'middle'
-  if h == 'centre' and v == 'middle' then return 'centre' end
-  if h == 'centre' then return v .. ' centre' end
-  if v == 'middle' then return h .. ' middle' end
-  return v .. ' ' .. h
+  if h == 'centre' and v == 'middle' then return T('a11y.position.centre') end
+  if h == 'centre' then return T('a11y.position.' .. v .. '_centre') end
+  if v == 'middle' then return T('a11y.position.' .. h .. '_middle') end
+  return T('a11y.position.' .. v .. '_' .. h)
 end
 
 
--- "1 heroes" is the kind of detail that makes synthetic speech grating.
-function describe.count(n, singular, plural)
-  return n .. ' ' .. (n == 1 and singular or (plural or (singular .. 's')))
+-- "1 heroes" is the kind of detail that makes synthetic speech grating, so the
+-- locale carries both forms; see loc.count.
+function describe.count(n, key)
+  return loc.count(n, key)
 end
 
 
@@ -202,7 +188,7 @@ end
 
 function describe.character(character, level)
   local name = character_names and character_names[character] or describe.title(character)
-  if level then return name .. ' level ' .. level end
+  if level then return T('a11y.name_level', name, level) end
   return name
 end
 
@@ -220,9 +206,9 @@ function describe.character_detail(character, level)
   local parts = {}
   local tier = character_tiers and character_tiers[character]
   table.insert(parts, describe.character(character, level) ..
-    (tier and (', tier ' .. tier) or ''))
+    (tier and T('a11y.tier_suffix', tier) or ''))
   local classes = describe.classes_of(character)
-  if classes ~= '' then table.insert(parts, 'classes: ' .. classes) end
+  if classes ~= '' then table.insert(parts, T('a11y.classes_of', classes)) end
   if character_descriptions and character_descriptions[character] then
     local ok, d = pcall(character_descriptions[character], level or 1)
     if ok then table.insert(parts, describe.speech(d)) end
@@ -232,7 +218,7 @@ function describe.character_detail(character, level)
     or (character_effect_names_gray and character_effect_names_gray[character])
   local descs = at_three and character_effect_descriptions or character_effect_descriptions_gray
   if effect_name then
-    local line = 'level 3 effect, ' .. describe.speech(effect_name)
+    local line = T('a11y.level_3_effect', describe.speech(effect_name))
     if descs and descs[character] then
       local ok, d = pcall(descs[character])
       if ok then line = line .. ': ' .. describe.speech(d) end
@@ -250,7 +236,7 @@ end
 
 function describe.passive(passive, level, xp)
   local parts = {describe.passive_name(passive)}
-  if level then table.insert(parts, 'level ' .. level) end
+  if level then table.insert(parts, T('a11y.level', level)) end
   local d = passive_descriptions_level and passive_descriptions_level[passive]
   local text
   if d then
@@ -274,17 +260,20 @@ end
 -- elite round with a boss; every third ends with an item choice.
 function describe.round_type(level, loop)
   loop = loop or 0
-  if (level - 25 * loop) % 6 == 0 or level % 25 == 0 then return 'elite round'
-  elseif (level - 25 * loop) % 3 == 0 then return 'hard round' end
+  if (level - 25 * loop) % 6 == 0 or level % 25 == 0 then return T('a11y.round.elite')
+  elseif (level - 25 * loop) % 3 == 0 then return T('a11y.round.hard') end
   return nil
 end
 
 
 -- Enemies are told apart on screen by colour alone.
-function describe.enemy_kind(o)
+-- The key is what the rest of the layer counts and groups by; describe.enemy
+-- turns one into words. Keeping them apart means a report can say "3 exploders"
+-- in any language without the counting code knowing any of them.
+function describe.enemy_key(o)
   if not o then return 'enemy' end
   if o.boss then return 'elite' end
-  if o.speed_booster then return 'speed booster'
+  if o.speed_booster then return 'speed_booster'
   elseif o.exploder then return 'exploder'
   elseif o.headbutter then return 'headbutter'
   elseif o.tank then return 'tank'
@@ -295,9 +284,21 @@ function describe.enemy_kind(o)
 end
 
 
+-- The bare noun for a key. a11y.enemy.<key> is the name on its own;
+-- a11y.enemy.<key>.one and .many are the counted forms loc.count picks between.
+function describe.enemy_name(key)
+  return T('a11y.enemy.' .. key)
+end
+
+
+function describe.enemy_kind(o)
+  return describe.enemy_name(describe.enemy_key(o))
+end
+
+
 function describe.boss_name(boss)
-  if not boss then return 'elite' end
-  return describe.title(boss) .. ' elite'
+  if not boss then return describe.enemy_name('elite') end
+  return T('a11y.enemy.boss', describe.enemy_name(boss))
 end
 
 
@@ -311,13 +312,7 @@ end
 
 -- A handful of buttons are labelled with a single glyph, which a screen reader
 -- can only read as punctuation.
-local ICON_BUTTONS = {['?'] = 'guide, F5', ['R'] = 'restart run, abandons the current run', ['x'] = 'close', ['X'] = 'close'}
-
--- Buttons that leave the game for a web page deserve a warning.
-local LINK_BUTTONS = {
-  ['buy the soundtrack!'] = true, ['join the community discord!'] = true,
-  ['nimble quest'] = true, ['dota underlords'] = true,
-}
+local ICON_BUTTONS = {['?'] = 'a11y.button.guide', ['R'] = 'a11y.button.restart', ['x'] = 'a11y.button.close', ['X'] = 'a11y.button.close'}
 
 
 -- The same question the keyboard asks when it groups a screen: links gather at
@@ -326,7 +321,9 @@ local LINK_BUTTONS = {
 function describe.is_link(o)
   if not o then return false end
   if o.credits_button then return true end
-  if o.button_text and LINK_BUTTONS[o.button_text] then return true end
+  -- Flagged where the button is built rather than recognised by its label,
+  -- which stopped being a stable identifier once the labels were translated.
+  if o.link_button then return true end
   return is(o, 'SteamFollowButton') or is(o, 'WishlistButton') or false
 end
 
@@ -344,8 +341,8 @@ function describe.focusable(o)
 
   if is(o, 'ShopCard') then
     local cost = o.cost or (character_tiers and character_tiers[o.unit]) or '?'
-    local label = describe.character(o.unit) .. ', ' .. cost .. ' gold'
-    if o.owned and o.owned_n then label = label .. ', ' .. describe.count(o.owned_n, 'copy', 'copies') .. ' owned' end
+    local label = T('a11y.widget.shop_card', describe.character(o.unit), cost)
+    if o.owned and o.owned_n then label = label .. ', ' .. T('a11y.widget.owned_copies', describe.count(o.owned_n, 'a11y.copies')) end
     local classes = describe.classes_of(o.unit)
     if classes ~= '' then label = label .. ', ' .. classes end
     -- The shop card has no hover tooltip of its own, so spell it out here.
@@ -353,20 +350,20 @@ function describe.focusable(o)
   end
 
   if is(o, 'CharacterIcon') then
-    return describe.character(o.character) .. ', shop card'
+    return T('a11y.widget.shop_card_short', describe.character(o.character))
   end
 
   if is(o, 'TutorialCharacterPart') then
-    return 'example hero, ' .. describe.character(o.character, o.level)
+    return T('a11y.widget.example_hero', describe.character(o.character, o.level))
   end
 
   if is(o, 'TutorialClassIcon') then
-    local label = 'example class icon, ' .. describe.class_name(o.class)
+    local label = T('a11y.widget.example_class', describe.class_name(o.class))
     if class_set_numbers and class_set_numbers[o.class] then
       local ok, i, j, k, owned = pcall(class_set_numbers[o.class], o.units or {})
       if ok then
         local level = (k and owned >= k and 3) or (owned >= j and 2) or (owned >= i and 1) or 0
-        label = label .. ', ' .. owned .. ' owned, bonus level ' .. level
+        label = label .. ', ' .. T('a11y.widget.owned_bonus', owned, level)
       end
     end
     return label
@@ -374,38 +371,38 @@ function describe.focusable(o)
 
   if is(o, 'CharacterPart') then
     local label = describe.character(o.character, o.level)
-    if o.i then label = 'party slot ' .. o.i .. ', ' .. label end
+    if o.i then label = T('a11y.widget.party_slot', o.i, label) end
     -- Read-only copies of the party appear on the death and victory screens;
     -- offering a sale price there would be a lie.
     if o.get_sale_price and not o.cant_click then
       local ok, price = pcall(o.get_sale_price, o)
-      if ok then label = label .. ', sells for ' .. price end
+      if ok then label = label .. ', ' .. T('a11y.widget.sells_for', price) end
     end
     -- Spare copies waiting to merge: the part of the level-up mechanic that is
     -- otherwise only visible as small tiles beside the party member.
     if o.reserve and o.level and o.level < 3 and not o.cant_click then
       local r1, r2 = o.reserve[1] or 0, o.reserve[2] or 0
       if o.level == 1 then
-        label = label .. ', ' .. r1 .. ' of 2 extra copies toward level 2'
+        label = label .. ', ' .. T('a11y.widget.toward_level', r1, 2, 2)
       else
-        label = label .. ', ' .. (r2 * 3 + r1) .. ' of 6 extra copies toward level 3'
+        label = label .. ', ' .. T('a11y.widget.toward_level', r2 * 3 + r1, 6, 3)
       end
-      if r1 + r2 > 0 then label = label .. ', shift backspace sells a spare copy' end
+      if r1 + r2 > 0 then label = label .. ', ' .. T('a11y.widget.sell_spare') end
     elseif o.level == 3 and not o.cant_click then
-      label = label .. ', max level'
+      label = label .. ', ' .. T('a11y.widget.max_level')
     end
     return label
   end
 
   if is(o, 'ClassIcon') then
-    local label = describe.class_name(o.class) .. ' class'
+    local label = T('a11y.widget.class', describe.class_name(o.class))
     if class_set_numbers and class_set_numbers[o.class] and o.units then
       local ok, i, j, k, owned = pcall(class_set_numbers[o.class], o.units)
       if ok then
         local target = (owned < i and i) or (owned < j and j) or (k and owned < k and k) or nil
-        label = label .. ', ' .. (owned or 0) .. ' owned'
-        if target then label = label .. ', next bonus at ' .. target
-        else label = label .. ', fully unlocked' end
+        label = label .. ', ' .. T('a11y.widget.owned', owned or 0)
+        if target then label = label .. ', ' .. T('a11y.widget.next_bonus', target)
+        else label = label .. ', ' .. T('a11y.widget.fully_unlocked') end
       end
     end
     return label
@@ -415,57 +412,55 @@ function describe.focusable(o)
   -- text, which the InfoText hook speaks. Naming them twice is just noise, so
   -- these deliberately return a label and no detail.
   if is(o, 'ItemCard') then
-    local label = describe.passive_name(o.passive) .. ', level ' .. tostring(o.level)
+    local label = T('a11y.name_level', describe.passive_name(o.passive), o.level)
     if o.parent and is(o.parent, 'BuyScreen') then
       if o.unlevellable or (o.level or 0) >= 3 then
-        label = label .. ', backspace sells'
+        label = label .. ', ' .. T('a11y.widget.item_sell')
       else
-        label = label .. ', enter adds experience for 5 gold, backspace sells'
+        label = label .. ', ' .. T('a11y.widget.item_xp_sell')
       end
     end
     return label
   end
 
   if is(o, 'PassiveCard') then
-    return 'item choice ' .. (o.card_i or '?') .. ', ' .. describe.passive_name(o.passive) ..
-      ', enter or ' .. (o.card_i or '?') .. ' to take it'
+    return T('a11y.widget.item_choice', o.card_i or '?', describe.passive_name(o.passive))
   end
 
   if is(o, 'GoButton') then
-    return 'go, start the round, G'
+    return T('a11y.widget.go')
   end
 
   if is(o, 'RerollButton') then
     local cost = o.free_reroll and 0 or (o.parent and o.parent.is and o.parent:is(Arena) and 5 or 2)
-    return 'reroll, ' .. cost .. ' gold, R'
+    return T('a11y.widget.reroll', cost)
   end
 
   if is(o, 'LockButton') then
-    return (o.parent and o.parent.locked) and 'unlock shop, cards will change next round'
-      or 'lock shop, keep these cards for next round'
+    return (o.parent and o.parent.locked) and T('a11y.widget.unlock_shop')
+      or T('a11y.widget.lock_shop')
   end
 
   if is(o, 'LevelButton') then
     local lvl = o.parent and o.parent.shop_level or '?'
-    return 'shop level ' .. lvl .. ', ' .. (o.shop_xp or 0) .. ' of ' .. (o.max_xp or 0) ..
-      ' experience. Enter buys experience for 5 gold, backspace sells a level for 10'
+    return T('a11y.widget.shop_level', lvl, o.shop_xp or 0, o.max_xp or 0)
   end
 
-  if is(o, 'RestartButton') then return 'new game plus ' .. tostring(current_new_game_plus or 0) .. ', start a new harder run' end
+  if is(o, 'RestartButton') then return T('a11y.widget.new_game_plus', current_new_game_plus or 0) end
 
-  if o.button_text and ICON_BUTTONS[o.button_text] then return ICON_BUTTONS[o.button_text] end
+  if o.button_text and ICON_BUTTONS[o.button_text] then return T(ICON_BUTTONS[o.button_text]) end
 
-  if is(o, 'SteamFollowButton') then return 'follow me on Steam, opens a browser' end
-  if is(o, 'WishlistButton') then return 'wishlist on Steam, opens a browser' end
+  if is(o, 'SteamFollowButton') then return T('a11y.widget.follow_steam') end
+  if is(o, 'WishlistButton') then return T('a11y.widget.wishlist') end
 
   if is(o, 'Button') then
-    local label = describe.speech(o.button_text or 'button')
-    if describe.is_link(o) then label = label .. ', opens a browser' end
+    local label = describe.speech(o.button_text or T('a11y.widget.button'))
+    if describe.is_link(o) then label = label .. ', ' .. T('a11y.widget.opens_browser') end
     return label
   end
 
   -- Anything unrecognised still gets a usable name rather than silence.
   if o.button_text then return describe.speech(o.button_text) end
   if o.character then return describe.character(o.character, o.level) end
-  return 'item'
+  return T('a11y.widget.item')
 end

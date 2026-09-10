@@ -156,10 +156,10 @@ end
 -- The closest wall regardless of heading, with the direction it lies in.
 local function nearest_wall(p, a)
   local candidates = {
-    {d = p.x - a.x1, r = math.pi,     name = 'left wall'},
-    {d = a.x2 - p.x, r = 0,           name = 'right wall'},
-    {d = p.y - a.y1, r = -math.pi/2,  name = 'top wall'},
-    {d = a.y2 - p.y, r = math.pi/2,   name = 'bottom wall'},
+    {d = p.x - a.x1, r = math.pi,     name = 'a11y.wall.left'},
+    {d = a.x2 - p.x, r = 0,           name = 'a11y.wall.right'},
+    {d = p.y - a.y1, r = -math.pi/2,  name = 'a11y.wall.top'},
+    {d = a.y2 - p.y, r = math.pi/2,   name = 'a11y.wall.bottom'},
   }
   local best = candidates[1]
   for _, c in ipairs(candidates) do if c.d < best.d then best = c end end
@@ -382,8 +382,8 @@ local function watch_party(a)
     if #lost > 0 then
       access.audio.play('unit_down', 0, 1, 1)
       local n = #units
-      access.say(describe.list(lost) .. (#lost == 1 and ' is down, ' or ' are down, ') ..
-        n .. (n == 1 and ' hero left' or ' heroes left'), {interrupt = false, priority = true})
+      access.say(T(#lost == 1 and 'a11y.party.one_down' or 'a11y.party.several_down',
+        describe.list(lost), loc.count(n, 'a11y.heroes_left')), {interrupt = false, priority = true})
       -- The party total is now over fewer heroes, so it jumps; start the
       -- health thresholds afresh rather than reporting that as a heal.
       watched.health = nil
@@ -396,7 +396,7 @@ local function watch_party(a)
   -- When the head dies the next hero in line takes over the steering, and
   -- with it the hits.
   if watched.leader_id and p.id ~= watched.leader_id then
-    access.say(describe.character(p.character) .. ' is now the head', {interrupt = false, priority = true})
+    access.say(T('a11y.party.new_head', describe.character(p.character)), {interrupt = false, priority = true})
   end
   watched.leader_id = p.id
 
@@ -407,7 +407,7 @@ local function watch_party(a)
       local f = u.hp / u.max_hp
       if f <= 0.25 and not watched.low[u.id] then
         watched.low[u.id] = true
-        access.say(describe.character(u.character) .. ' low, ' .. math.floor(f * 100 + 0.5) .. ' percent',
+        access.say(T('a11y.party.low', describe.character(u.character), math.floor(f * 100 + 0.5)),
           {interrupt = false})
       elseif f > 0.4 and watched.low[u.id] then
         watched.low[u.id] = nil
@@ -427,7 +427,7 @@ local function watch_enemies(a)
     if not watched.seen[o.id] then
       watched.seen[o.id] = true
       if not o.boss then
-        local k = describe.enemy_kind(o)
+        local k = describe.enemy_key(o)
         if k ~= 'enemy' and k ~= 'critter' then newcomers[k] = (newcomers[k] or 0) + 1 end
       end
     end
@@ -438,10 +438,10 @@ local function watch_enemies(a)
         watched.elite[o.id] = state
         if state == 'charge' then
           access.audio.play('charge', math.sin(e.b), 1, 1)
-          access.say('headbutter charging, ' .. describe.distance(e.d) .. ' at ' .. describe.clock(e.b), {interrupt = false})
+          access.say(T('a11y.arena.headbutter_charging', describe.distance(e.d), describe.clock(e.b)), {interrupt = false})
         elseif state == 'butt' then
           access.audio.play('charge', math.sin(e.b), 1.5, 1)
-          access.say('headbutt from ' .. describe.side(e.b), {interrupt = true, priority = true})
+          access.say(T('a11y.arena.headbutt_from', describe.side(e.b)), {interrupt = true, priority = true})
         end
       end
     elseif o.shooter then
@@ -449,7 +449,7 @@ local function watch_enemies(a)
       if watched.elite[o.id] ~= state then
         watched.elite[o.id] = state
         if state == 'shooting' then
-          access.say('shooter taking aim, ' .. describe.distance(e.d) .. ' at ' .. describe.clock(e.b), {interrupt = false})
+          access.say(T('a11y.arena.shooter_aiming', describe.distance(e.d), describe.clock(e.b)), {interrupt = false})
         end
       end
     end
@@ -467,9 +467,9 @@ local function watch_enemies(a)
           local arrivals = hud._arrivals or {}
           hud._arrivals = nil
           local parts = {}
-          for k, n in pairs(arrivals) do table.insert(parts, describe.count(n, k)) end
+          for k, n in pairs(arrivals) do table.insert(parts, describe.count(n, 'a11y.enemy.' .. k)) end
           table.sort(parts)
-          if #parts > 0 then access.say('arriving: ' .. describe.list(parts), {interrupt = false}) end
+          if #parts > 0 then access.say(T('a11y.arena.arriving', describe.list(parts)), {interrupt = false}) end
         end)
       end, 'access_arrivals')
     end
@@ -482,12 +482,12 @@ local function watch_boss(a)
   if not boss then return end
   if not watched.boss_seen then
     watched.boss_seen = true
-    access.say(describe.boss_name(boss.boss) .. ' is here. Kill it to win the round.', {interrupt = false, priority = true})
+    access.say(T('a11y.arena.elite_here', describe.boss_name(boss.boss)), {interrupt = false, priority = true})
   end
   if boss.dead then
     if not watched.boss_dead then
       watched.boss_dead = true
-      access.say('elite down. Clear the rest.', {interrupt = false, priority = true})
+      access.say(T('a11y.arena.elite_down'), {interrupt = false, priority = true})
     end
     return
   end
@@ -496,7 +496,7 @@ local function watch_boss(a)
     if watched.boss_hp == nil then watched.boss_hp = f end
     for _, step in ipairs(BOSS_STEPS) do
       if watched.boss_hp > step and f <= step then
-        access.say('elite at ' .. math.floor(step * 100) .. ' percent', {interrupt = false})
+        access.say(T('a11y.arena.elite_at', math.floor(step * 100)), {interrupt = false})
       end
     end
     watched.boss_hp = f
@@ -513,7 +513,7 @@ local function watch_announcements(dt)
     if watched.start_time and a.start_time > 0 then
       access.say(tostring(a.start_time), {interrupt = true, priority = true})
     elseif watched.start_time and a.start_time <= 0 then
-      access.say('go', {interrupt = true, priority = true})
+      access.say(T('a11y.arena.go'), {interrupt = true, priority = true})
     end
     watched.start_time = a.start_time
   end
@@ -522,7 +522,7 @@ local function watch_announcements(dt)
   if a.wave and a.wave ~= watched.wave then
     watched.wave = a.wave
     if a.wave > 0 and a.max_waves and a.wave <= a.max_waves then
-      access.say('wave ' .. a.wave .. ' of ' .. a.max_waves, {interrupt = false})
+      access.say(T('a11y.arena.wave', a.wave, a.max_waves), {interrupt = false})
     end
   end
 
@@ -535,12 +535,12 @@ local function watch_announcements(dt)
     if watched.health == nil then watched.health = frac end
     for _, step in ipairs(HEALTH_STEPS) do
       if watched.health > step and frac <= step then
-        access.say('party health ' .. math.floor(step * 100) .. ' percent',
+        access.say(T('a11y.arena.party_health', math.floor(step * 100)),
           {interrupt = false, priority = step <= 0.25})
       end
     end
     if frac > (watched.health or 0) + 0.15 then
-      access.say('healed', {interrupt = false})
+      access.say(T('a11y.arena.healed'), {interrupt = false})
     end
     watched.health = frac
   end
@@ -600,7 +600,7 @@ function hud.on_spawn_marker(x, y)
         for _, s in ipairs(places) do
           if not seen[s] then seen[s] = true; table.insert(unique, s) end
         end
-        access.say((boss and 'elite arriving at the ' or 'enemies at the ') .. describe.list(unique), {interrupt = false})
+        access.say(T(boss and 'a11y.arena.elite_arriving_at' or 'a11y.arena.enemies_at', describe.list(unique)), {interrupt = false})
       end)
     end, 'access_spawn_announce')
   end
@@ -638,16 +638,16 @@ function hud.on_mine(m)
   if not p or not a or not playable() then return end
   local d, b = range_and_bearing(p, m)
   access.audio.play('mine', math.sin(b), 1, 1)
-  access.say('mine ' .. describe.distance(d) .. ' at ' .. describe.clock(b), {interrupt = false})
+  access.say(T('a11y.arena.mine', describe.distance(d), describe.clock(b)), {interrupt = false})
 end
 
 
 -- Every boss attack is drawn as lightning from the boss to its targets. Once
 -- per volley, say what the elite just did.
 local BOSS_ATTACKS = {
-  speed_booster = 'elite speeds up its allies',
-  forcer = 'elite flings enemies at you',
-  swarmer = 'elite bursts an ally into critters',
+  speed_booster = 'a11y.arena.elite_speeds_allies',
+  forcer = 'a11y.arena.elite_flings_enemies',
+  swarmer = 'a11y.arena.elite_bursts_ally',
 }
 
 function hud.on_boss_attack(boss, color)
@@ -660,10 +660,10 @@ function hud.on_boss_attack(boss, color)
     if color == green[0] then text = BOSS_ATTACKS.speed_booster
     elseif color == yellow[0] then text = BOSS_ATTACKS.forcer
     elseif color == purple[0] then text = BOSS_ATTACKS.swarmer
-    elseif color == blue[0] then text = 'elite detonates an ally into a ring of shots' end
+    elseif color == blue[0] then text = 'a11y.arena.elite_detonates_ally' end
   end
   -- The exploder boss plants mines, and every mine already announces itself.
-  if text then access.say(text, {interrupt = false}) end
+  if text then access.say(T(text), {interrupt = false}) end
 end
 
 
@@ -675,7 +675,7 @@ function hud.on_wall_bounce(p)
   local now = love.timer.getTime()
   if hud._last_bounce and (now - hud._last_bounce) < 0.7 then return end
   hud._last_bounce = now
-  access.say('heading ' .. describe.compass(p.r), {interrupt = false})
+  access.say(T('a11y.arena.heading', describe.compass(p.r)), {interrupt = false})
 end
 
 
@@ -691,32 +691,28 @@ function hud.on_arena_enter(a)
   if a.lesson then
     local n = 0
     for _, squad in ipairs(a.lesson.squads) do n = n + (squad.n or 1) end
-    access.say('Tutorial run, ' .. a.lesson.name .. '. ' .. describe.count(n, 'enemy', 'enemies') ..
-      ', one hero, a smaller arena than usual. Kill everything to finish. Steer with A and D or the ' ..
-      'arrow keys. M repeats what was just said, F5 reads the briefing again. Get ready.',
+    access.say(T('a11y.arena.lesson_start', tutorial.name(a.lesson), describe.count(n, 'a11y.enemy.enemy')),
       {interrupt = true})
     return
   end
 
   local total = 25 * ((a.loop or 0) + 1)
-  local parts = {'Round ' .. tostring(a.level) .. ' of ' .. total}
+  local parts = {T('a11y.arena.round', a.level, total)}
   if a.boss_level then
     local boss = level_to_boss and level_to_boss[a.level]
-    table.insert(parts, 'elite round, ' .. describe.boss_name(boss))
+    table.insert(parts, T('a11y.arena.elite_round', describe.boss_name(boss)))
   elseif a.max_waves then
-    table.insert(parts, describe.count(a.max_waves, 'wave'))
+    table.insert(parts, describe.count(a.max_waves, 'a11y.waves'))
   end
-  table.insert(parts, describe.count(#(a.units or {}), 'hero', 'heroes'))
+  table.insert(parts, describe.count(#(a.units or {}), 'a11y.heroes'))
   local level = a.level - 25 * (a.loop or 0)
   if level % 3 == 0 and a.level % 25 ~= 0 and #(a.passives or {}) < 8 then
-    table.insert(parts, 'item choice after this round')
+    table.insert(parts, T('a11y.arena.item_after'))
   end
-  access.say(table.concat(parts, ', ') .. '. Get ready.', {interrupt = true})
+  access.say(table.concat(parts, ', ') .. '. ' .. T('a11y.arena.get_ready'), {interrupt = true})
 
   if a.level == 1 then
-    access.say('Steer with A and D or the arrow keys. The snake never stops. ' ..
-      'Pings are enemies, bright ahead and dull behind; a wooden knock is the wall ahead. ' ..
-      'Press F1 for the keys and F5 for the guide.', {interrupt = false})
+    access.say(T('a11y.arena.first_round_help'), {interrupt = false})
   end
 end
 
@@ -725,26 +721,23 @@ function hud.on_die(a)
   -- Losing a tutorial run is not losing a run; hud.on_lesson_over has already
   -- said what it is.
   if a.lesson then return end
-  access.say('You died on round ' .. tostring(a.level) ..
-    '. Tab moves on to the party and the items you finished with, R restarts the run, escape opens the menu.', {interrupt = true, priority = true})
+  access.say(T('a11y.arena.died', a.level), {interrupt = true, priority = true})
 end
 
 
 function hud.on_lesson_over(a, outcome)
   if outcome == 'passed' then
     local done = tutorial.completed_count()
-    access.say(a.lesson.name .. ' cleared, and marked done. ' .. done .. ' of ' ..
-      #tutorial.lessons .. ' tutorial runs finished. The arrow keys browse what to do next; R runs this ' ..
-      'one again.', {interrupt = true, priority = true})
+    access.say(T('a11y.lesson.cleared', tutorial.name(a.lesson), done, #tutorial.lessons),
+      {interrupt = true, priority = true})
   else
-    access.say('You died. ' .. a.lesson.name .. ' is not finished. R tries it again, and the arrow keys ' ..
-      'reach the way back to the list.', {interrupt = true, priority = true})
+    access.say(T('a11y.lesson.failed', tutorial.name(a.lesson)), {interrupt = true, priority = true})
   end
 end
 
 
 function hud.on_clear(a)
-  access.say('Arena clear. Round ' .. tostring(a.level) .. ' complete.', {interrupt = true})
+  access.say(T('a11y.arena.clear', a.level), {interrupt = true})
 end
 
 
@@ -755,7 +748,7 @@ local function boss_line(p, a)
   if not boss or boss.dead then return nil end
   local d, b = range_and_bearing(p, boss)
   local pct = (boss.max_hp and boss.max_hp > 0) and math.floor((boss.hp / boss.max_hp) * 100 + 0.5) or 0
-  return 'elite ' .. pct .. ' percent, ' .. describe.distance(d) .. ' at ' .. describe.clock(b)
+  return T('a11y.report.elite', pct, describe.distance(d), describe.clock(b))
 end
 
 
@@ -766,36 +759,38 @@ function hud.report_status()
     -- the run, and what can I afford.
     local st = main and main.current
     if st and st.is and st:is(BuyScreen) then
-      local parts = {'Shop, round ' .. tostring(st.level) .. ' of ' .. 25 * ((st.loop or 0) + 1)}
+      local parts = {T('a11y.report.shop_round', st.level, 25 * ((st.loop or 0) + 1))}
       local kind = describe.round_type(st.level, st.loop)
       if kind then table.insert(parts, kind) end
-      table.insert(parts, tostring(gold) .. ' gold')
-      table.insert(parts, 'party ' .. tostring(#(st.units or {})) .. ' of ' .. tostring(max_units))
-      table.insert(parts, 'shop level ' .. tostring(st.shop_level))
-      if st.locked then table.insert(parts, 'shop locked') end
+      table.insert(parts, T('a11y.gold', gold))
+      table.insert(parts, T('a11y.shop.party', #(st.units or {}), max_units))
+      table.insert(parts, T('a11y.shop.level', st.shop_level))
+      if st.locked then table.insert(parts, T('a11y.shop.locked')) end
       access.say(table.concat(parts, ', '), {interrupt = true})
     else
-      access.say('main menu', {interrupt = true})
+      access.say(T('a11y.report.main_menu'), {interrupt = true})
     end
     return
   end
-  local parts = {a.lesson and ('Tutorial run, ' .. a.lesson.name) or ('Round ' .. tostring(a.level) .. ' of ' .. 25 * ((a.loop or 0) + 1))}
+  local parts = {a.lesson and T('a11y.report.lesson_run', tutorial.name(a.lesson))
+    or T('a11y.arena.round', a.level, 25 * ((a.loop or 0) + 1))}
   if a.start_time and a.start_time > 0 then
-    table.insert(parts, 'starting in ' .. a.start_time)
+    table.insert(parts, T('a11y.report.starting_in', a.start_time))
   elseif a.lesson then
-    table.insert(parts, 'kill everything to finish')
+    table.insert(parts, T('a11y.report.kill_everything'))
   elseif a.boss_level then
-    table.insert(parts, a.boss and not a.boss.dead and 'elite alive' or (a.boss and 'elite down' or 'elite not yet here'))
+    table.insert(parts, a.boss and not a.boss.dead and T('a11y.report.elite_alive')
+      or (a.boss and T('a11y.report.elite_dead') or T('a11y.report.elite_not_here')))
   elseif a.wave and a.max_waves then
-    table.insert(parts, 'wave ' .. math.max(1, math.min(a.wave, a.max_waves)) .. ' of ' .. a.max_waves)
+    table.insert(parts, T('a11y.arena.wave', math.max(1, math.min(a.wave, a.max_waves)), a.max_waves))
   end
-  table.insert(parts, describe.count(#cache.enemies, 'enemy', 'enemies'))
+  table.insert(parts, describe.count(#cache.enemies, 'a11y.enemy.enemy'))
   local frac = party_health(a)
-  if frac then table.insert(parts, 'party health ' .. math.floor(frac * 100 + 0.5) .. ' percent') end
+  if frac then table.insert(parts, T('a11y.arena.party_health', math.floor(frac * 100 + 0.5))) end
   -- A tutorial run pays nothing and costs nothing, so gold there is noise.
   if not a.lesson then
-    table.insert(parts, tostring(gold) .. ' gold')
-    if (a.gold_picked_up or 0) > 0 then table.insert(parts, a.gold_picked_up .. ' picked up this round') end
+    table.insert(parts, T('a11y.gold', gold))
+    if (a.gold_picked_up or 0) > 0 then table.insert(parts, T('a11y.report.picked_up', a.gold_picked_up)) end
   end
   access.say(table.concat(parts, ', '), {interrupt = true})
 end
@@ -804,17 +799,17 @@ end
 function hud.report_position()
   local p, a = head()
   if not p then
-    access.say('no snake to locate', {interrupt = true})
+    access.say(T('a11y.report.no_snake'), {interrupt = true})
     return
   end
   local parts = {}
-  table.insert(parts, 'You are in the ' .. describe.position(p.x, p.y, a))
-  table.insert(parts, 'heading ' .. describe.compass(p.r))
+  table.insert(parts, T('a11y.report.you_are_in', describe.position(p.x, p.y, a)))
+  table.insert(parts, T('a11y.arena.heading', describe.compass(p.r)))
   local ahead = wall_ahead(p, a)
-  if ahead then table.insert(parts, 'wall ahead in ' .. describe.steps(ahead) .. ' steps') end
+  if ahead then table.insert(parts, T('a11y.report.wall_ahead', describe.steps(ahead))) end
   local wall = nearest_wall(p, a)
   if wall.d < 40 then
-    table.insert(parts, wall.name .. ' ' .. describe.side(describe.wrap_angle(wall.r - p.r)))
+    table.insert(parts, T(wall.name) .. ' ' .. describe.side(describe.wrap_angle(wall.r - p.r)))
   end
   access.say(table.concat(parts, ', '), {interrupt = true})
 end
@@ -823,14 +818,14 @@ end
 function hud.report_enemies()
   local p, a = head()
   if not p then
-    access.say('not in the arena', {interrupt = true})
+    access.say(T('a11y.report.not_in_arena'), {interrupt = true})
     return
   end
   if #cache.enemies == 0 then
-    access.say('no enemies', {interrupt = true})
+    access.say(T('a11y.report.no_enemies'), {interrupt = true})
     return
   end
-  local parts = {#cache.enemies .. (#cache.enemies == 1 and ' enemy' or ' enemies')}
+  local parts = {describe.count(#cache.enemies, 'a11y.enemy.enemy')}
   -- A quadrant census first: it is what tells you which way to turn.
   local sectors = {ahead = 0, right = 0, behind = 0, left = 0}
   local kinds = {}
@@ -840,23 +835,22 @@ function hud.report_enemies()
     elseif ab > 3 * math.pi / 4 then sectors.behind = sectors.behind + 1
     elseif b > 0 then sectors.right = sectors.right + 1
     else sectors.left = sectors.left + 1 end
-    local k = describe.enemy_kind(e.o)
+    local k = describe.enemy_key(e.o)
     if k ~= 'enemy' and k ~= 'elite' then kinds[k] = (kinds[k] or 0) + 1 end
   end
   local census = {}
-  local SECTOR_NAMES = {ahead = 'ahead', right = 'on your right', behind = 'behind', left = 'on your left'}
   for _, key in ipairs({'ahead', 'right', 'behind', 'left'}) do
-    if sectors[key] > 0 then table.insert(census, sectors[key] .. ' ' .. SECTOR_NAMES[key]) end
+    if sectors[key] > 0 then table.insert(census, T('a11y.sector.' .. key, sectors[key])) end
   end
   table.insert(parts, describe.list(census))
   local specials = {}
-  for k, n in pairs(kinds) do table.insert(specials, describe.count(n, k)) end
+  for k, n in pairs(kinds) do table.insert(specials, describe.count(n, 'a11y.enemy.' .. k)) end
   table.sort(specials)
-  if #specials > 0 then table.insert(parts, 'including ' .. describe.list(specials)) end
+  if #specials > 0 then table.insert(parts, T('a11y.report.including', describe.list(specials))) end
   local n = cache.enemies[1]
-  local kind = describe.enemy_kind(n.o)
-  local nearest = n.o.boss and 'the elite' or ((kind:find('^[aeiou]') and 'an ' or 'a ') .. kind)
-  table.insert(parts, 'nearest is ' .. nearest .. ', ' .. describe.distance(n.d) .. ' at ' .. describe.clock(n.b))
+  -- "the elite" rather than "an elite": there is only ever one.
+  local nearest = n.o.boss and T('a11y.report.the_elite') or describe.enemy_kind(n.o)
+  table.insert(parts, T('a11y.report.nearest_is', nearest, describe.distance(n.d), describe.clock(n.b)))
   local boss = boss_line(p, a)
   if boss then table.insert(parts, boss) end
   access.say(table.concat(parts, '. '), {interrupt = true})
@@ -866,11 +860,11 @@ end
 function hud.report_pickups()
   local p = head()
   if not p then
-    access.say('not in the arena', {interrupt = true})
+    access.say(T('a11y.report.not_in_arena'), {interrupt = true})
     return
   end
   if #cache.pickups == 0 then
-    access.say('nothing to pick up', {interrupt = true})
+    access.say(T('a11y.report.nothing_to_pick_up'), {interrupt = true})
     return
   end
   local gold_n, orb_n = 0, 0
@@ -878,11 +872,12 @@ function hud.report_pickups()
     if g.kind == 'gold' then gold_n = gold_n + 1 else orb_n = orb_n + 1 end
   end
   local parts = {}
-  if gold_n > 0 then table.insert(parts, gold_n .. ' gold') end
-  if orb_n > 0 then table.insert(parts, orb_n .. ' healing ' .. (orb_n == 1 and 'orb' or 'orbs')) end
+  if gold_n > 0 then table.insert(parts, T('a11y.gold', gold_n)) end
+  if orb_n > 0 then table.insert(parts, describe.count(orb_n, 'a11y.healing_orbs')) end
   local n = cache.pickups[1]
-  table.insert(parts, 'nearest is ' .. (n.kind == 'gold' and 'gold' or 'a healing orb') ..
-    ', ' .. describe.distance(n.d) .. ' at ' .. describe.clock(n.b))
+  table.insert(parts, T('a11y.report.nearest_pickup',
+    n.kind == 'gold' and T('a11y.report.pickup_gold') or T('a11y.report.pickup_orb'),
+    describe.distance(n.d), describe.clock(n.b)))
   access.say(table.concat(parts, ', '), {interrupt = true})
 end
 
@@ -900,9 +895,9 @@ function hud.report_party()
       for i, u in ipairs(units) do
         table.insert(parts, i .. ', ' .. describe.character(u.character, u.level))
       end
-      access.say('Party, head first: ' .. table.concat(parts, '. '), {interrupt = true})
+      access.say(T('a11y.report.party_head_first', table.concat(parts, '. ')), {interrupt = true})
     else
-      access.say('no party yet', {interrupt = true})
+      access.say(T('a11y.report.no_party'), {interrupt = true})
     end
     return
   end
@@ -910,11 +905,12 @@ function hud.report_party()
   for i, u in ipairs(p:get_all_units()) do
     if not u.dead then
       local pct = (u.max_hp and u.max_hp > 0) and math.floor((u.hp / u.max_hp) * 100 + 0.5) or 0
-      table.insert(parts, describe.character(u.character, u.level) .. (i == 1 and ', head, ' or ', ') .. pct .. ' percent')
+      table.insert(parts, T(i == 1 and 'a11y.report.hero_head_pct' or 'a11y.report.hero_pct',
+        describe.character(u.character, u.level), pct))
     end
   end
   if #parts == 0 then
-    access.say('no heroes left', {interrupt = true})
+    access.say(T('a11y.report.no_heroes_left'), {interrupt = true})
   else
     access.say(table.concat(parts, '. '), {interrupt = true})
   end
@@ -927,7 +923,7 @@ function hud.report_build()
   local st = main and main.current
   local units = st and st.units
   if not units or #units == 0 then
-    access.say('no heroes yet', {interrupt = true})
+    access.say(T('a11y.report.no_heroes_yet'), {interrupt = true})
     return
   end
   local parts = {}
@@ -935,7 +931,7 @@ function hud.report_build()
   for _, u in ipairs(units) do
     table.insert(names, describe.character(u.character, u.level))
   end
-  table.insert(parts, describe.count(#units, 'hero', 'heroes') .. ': ' .. table.concat(names, ', '))
+  table.insert(parts, describe.count(#units, 'a11y.heroes') .. ': ' .. table.concat(names, ', '))
 
   if get_class_levels then
     local ok, levels = pcall(get_class_levels, units)
@@ -947,7 +943,7 @@ function hud.report_build()
         end
       end
       table.sort(active)
-      if #active > 0 then table.insert(parts, 'class bonuses: ' .. table.concat(active, ', ')) end
+      if #active > 0 then table.insert(parts, T('a11y.report.class_bonuses', table.concat(active, ', '))) end
     end
   end
 
@@ -955,9 +951,9 @@ function hud.report_build()
   if passives and #passives > 0 then
     local items = {}
     for _, item in ipairs(passives) do
-      table.insert(items, describe.passive_name(item.passive) .. ' level ' .. tostring(item.level))
+      table.insert(items, T('a11y.name_level', describe.passive_name(item.passive), item.level))
     end
-    table.insert(parts, describe.count(#items, 'item') .. ': ' .. table.concat(items, ', '))
+    table.insert(parts, describe.count(#items, 'a11y.items') .. ': ' .. table.concat(items, ', '))
   end
 
   access.say(table.concat(parts, '. '), {interrupt = true})

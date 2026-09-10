@@ -30,83 +30,40 @@ local HERO = {{character = 'magician', level = 3}}
 -- point of a lesson is that its numbers are chosen for what it has to show.
 -- `hp` and `dmg` are absolute values the enemy is scaled to after it is built,
 -- so they stay meaningful when the level next to them changes.
+-- Each lesson's name and briefing live in the locale files under
+-- tutorial.<key>.name and tutorial.<key>.brief; everything here is the shape
+-- of the fight, which does not change with the language.
 tutorial.lessons = {
   {
     key = 'seeker',
-    name = 'enemy',
-    brief = 'The plain enemy, and nine out of ten of everything you will fight. It walks straight at you ' ..
-      'and does nothing else: it cannot shoot, and the only way it can hurt you is by touching one of your ' ..
-      'heroes. A snake that keeps moving takes almost nothing from it. Its tone is the one you will hear ' ..
-      'most, bright when it is ahead of you and dull when it is behind, rising as it closes. Kill all three.',
     squads = {{n = 3, hp = 80}},
   },
   {
     key = 'shooter',
-    name = 'shooter',
-    brief = 'A shooter walks at you for a couple of seconds, then plants itself, turns to face you and ' ..
-      'fires bursts of three shots. Once it has stopped it never moves again, so it is the one enemy you ' ..
-      'can safely leave until last. The shots are a buzz panned to the side they are coming from. They ' ..
-      'travel in a straight line and do not follow you, so a small turn across them is enough to be ' ..
-      'somewhere else when they arrive.',
     squads = {{n = 3, kind = 'shooter', hp = 80}},
   },
   {
     key = 'headbutter',
-    name = 'headbutter',
-    brief = 'A headbutter walks like a plain enemy until you come within a few steps of it. Then it locks ' ..
-      'on and winds up for two seconds, which is the fluttering tone, before charging in a straight line ' ..
-      'much faster than anything else moves. Steer sideways rather than away: it commits to the line it ' ..
-      'started on and cannot correct. A charge that lands costs several times an ordinary touch, so that ' ..
-      'sideways turn is the whole lesson. Each one can only charge every ten seconds.',
     squads = {{n = 3, kind = 'headbutter', hp = 110}},
   },
   {
     key = 'exploder',
-    name = 'exploder',
-    brief = 'An exploder walks at you like a plain enemy and dies after about twenty seconds whether you ' ..
-      'kill it or not. Wherever it dies it leaves a mine: a sharp tick, three times, higher each time, and ' ..
-      'then a ring of eight shots thrown out in every direction. The tick is the only warning and it is ' ..
-      'enough. Kill exploders away from where you are heading, and when you hear one start ticking, be ' ..
-      'travelling away from it before it finishes.',
     squads = {{n = 3, kind = 'exploder', hp = 70}},
   },
   {
     key = 'speed_booster',
-    name = 'speed booster',
-    brief = 'A speed booster walks at you like a plain enemy and, like an exploder, dies on its own after ' ..
-      'a while. Whenever one dies, every enemy standing near it moves at three times its normal speed for ' ..
-      'the next few seconds, and you will hear their tones climb and quicken with them. A swarm that was ' ..
-      'comfortably behind you can be on top of you a second later. Kill them where the rest of the round ' ..
-      'is not, and expect the survivors to arrive early.',
     squads = {{n = 3, kind = 'speed_booster', hp = 90}},
   },
   {
     key = 'tank',
-    name = 'tank',
-    brief = 'A tank has several times the health of anything else and moves at a crawl, so it is almost ' ..
-      'never the thing that kills you. What kills you is its company: every few seconds it shoves the ' ..
-      'nearest enemy hard in your direction. A shoved enemy crosses the arena in a moment, arriving from ' ..
-      'a bearing its tone had no time to walk you through. Clear the enemies around a tank first, then ' ..
-      'take as long as you like over the tank itself. Here the three tanks shove each other.',
     squads = {{n = 3, kind = 'tank', hp = 120}},
   },
   {
     key = 'spawner',
-    name = 'spawner',
-    brief = 'A spawner walks at you like a plain enemy, and when it dies it bursts into five to eight ' ..
-      'critters: small, fast, fragile enemies that die the instant they touch you and take a bite out of ' ..
-      'a hero on the way through. Ordinary shots pass straight through a critter, so only area attacks ' ..
-      'and running them over will clear them. Killing a spawner always costs you something. Kill it with ' ..
-      'room around you, never while you are cornered.',
     squads = {{n = 2, kind = 'spawner', hp = 90}},
   },
   {
     key = 'elite_speed_booster',
-    name = 'speed booster elite',
-    brief = 'An elite is the single large enemy that ends every sixth round, and it holds a slow, heavy ' ..
-      'tone of its own so that you can find it underneath the swarm. This one speeds up the four enemies ' ..
-      'nearest it every eight seconds, so its escorts, not the elite, are what will kill you. Elites move ' ..
-      'slowly and stay with their group rather than chasing you. Kill everything here to finish the run.',
     -- Escorts are the demonstration material for every elite: an elite whose
     -- allies have already died spends the rest of the fight walking at you in
     -- silence. They are given enough health to outlast two of its attacks,
@@ -115,42 +72,33 @@ tutorial.lessons = {
   },
   {
     key = 'elite_exploder',
-    name = 'exploder elite',
-    brief = 'Every four seconds the exploder elite kills one of its own escorts and leaves a mine where ' ..
-      'it stood. The mines are the fight: the elite turns its own swarm into a minefield laid wherever ' ..
-      'you happen to be standing. Every mine ticks three times before it throws out its ring of shots, so ' ..
-      'keep moving through open ground and never circle back over ground you have just fought on.',
     squads = {{n = 1, boss = 'exploder', level = 12, hp = 180, dmg = 14}, {n = 5, hp = 70, dmg = 10}},
   },
   {
     key = 'elite_swarmer',
-    name = 'swarmer elite',
-    brief = 'Every four seconds the swarmer elite kills one of its own escorts and turns it into four to ' ..
-      'six critters, so its swarm grows faster than shots alone can clear it. Critters die on contact ' ..
-      'with you and to area attacks, and are untouched by ordinary shots. Killing the elite stops the ' ..
-      'supply, so unlike most rounds this is one where going for the elite first is right.',
     squads = {{n = 1, boss = 'swarmer', level = 18, hp = 170, dmg = 14}, {n = 4, hp = 80, dmg = 10}},
   },
   {
     key = 'elite_forcer',
-    name = 'forcer elite',
-    brief = 'Every six seconds the forcer elite marks a point on the floor, drags every enemy near that ' ..
-      'point towards it for two seconds, and then flings the whole gathered bunch at you at once. The ' ..
-      'gathering is quiet; the arrival is not. When several enemy tones slide together into one place, ' ..
-      'that is the wind-up, and you want to be a long way from where you are now before it ends.',
     squads = {{n = 1, boss = 'forcer', level = 24, hp = 240, dmg = 14}, {n = 4, hp = 90, dmg = 10}},
   },
   {
     key = 'elite_randomizer',
-    name = 'randomizer elite',
-    brief = 'The randomizer elite ends the last round of the game and does one of the other four elites\' ' ..
-      'tricks at random every six seconds: speeding its allies up, detonating one into a ring of shots, ' ..
-      'bursting one into critters, or flinging the group at you. Each one is spoken as it happens, which ' ..
-      'is the only warning there is. There is no pattern to read here, only the four answers you already ' ..
-      'know, chosen quickly.',
     squads = {{n = 1, boss = 'randomizer', level = 25, hp = 240, dmg = 14}, {n = 5, hp = 70, dmg = 10}},
   },
 }
+
+
+-- Looked up rather than stored on the lesson, so that a language change is
+-- picked up by a menu built afterwards without the table having to be rebuilt.
+function tutorial.name(lesson)
+  return T('tutorial.' .. lesson.key .. '.name')
+end
+
+
+function tutorial.brief(lesson)
+  return T('tutorial.' .. lesson.key .. '.brief')
+end
 
 
 tutorial.by_key = {}
@@ -271,9 +219,9 @@ local function build_list(st)
   st.tutorial_page = 'list'
 
   Text2{group = st.tutorial_menu, x = gw/2, y = 22,
-    lines = {{text = '[fg]tutorial runs', font = fat_font, alignment = 'center'}}}
+    lines = {{text = '[fg]' .. T('ui.menu.tutorial_runs'), font = fat_font, alignment = 'center'}}}
   Text2{group = st.tutorial_menu, x = gw/2, y = 44,
-    lines = {{text = '[bg10]one enemy at a time, explained and then fought on its own',
+    lines = {{text = '[bg10]' .. T('ui.tutorial.subtitle'),
       font = pixul_font, alignment = 'center'}}}
 
   local rows = math.ceil(#tutorial.lessons / #COLUMN_LEFT)
@@ -281,7 +229,8 @@ local function build_list(st)
     local column = math.min(#COLUMN_LEFT, math.ceil(i / rows))
     local row = i - (column - 1) * rows
     local done = tutorial.is_complete(lesson.key)
-    local label = lesson.name .. (done and ' - done' or '')
+    local name = tutorial.name(lesson)
+    local label = done and T('ui.tutorial.lesson_done', name) or name
     local width = pixul_font:get_text_width(label) + 8
     local b = Button{group = st.tutorial_menu, x = COLUMN_LEFT[column] + width/2,
       y = ROW_TOP + (row - 1) * ROW_STEP, force_update = true, button_text = label,
@@ -293,26 +242,22 @@ local function build_list(st)
     -- left to reach the one control that is not a lesson.
     b.a11y_order = i
     b.a11y_group = 'lessons'
-    b.a11y_label = lesson.name .. (done and ', done' or ', not done yet')
-    b.a11y_detail = first_sentence(lesson.brief)
+    b.a11y_label = done and T('a11y.tutorial.done', name) or T('a11y.tutorial.not_done', name)
+    b.a11y_detail = first_sentence(tutorial.brief(lesson))
   end
 
   local done = tutorial.completed_count()
   Text2{group = st.tutorial_menu, x = gw/2, y = PROGRESS_Y, lines = {
-    {text = '[bg10]' .. done .. ' of ' .. #tutorial.lessons .. ' done', font = pixul_font, alignment = 'center'}}}
+    {text = '[bg10]' .. T('ui.tutorial.progress', done, #tutorial.lessons), font = pixul_font, alignment = 'center'}}}
 
   local back = Button{group = st.tutorial_menu, x = gw/2, y = BACK_Y, force_update = true,
-    button_text = 'back (esc)', fg_color = 'bg10', bg_color = 'bg',
+    button_text = T('ui.tutorial.back'), fg_color = 'bg10', bg_color = 'bg',
     action = function() next_frame(function() tutorial.close(st) end) end}
   back.a11y_order = #tutorial.lessons + 1
   back.a11y_group = 'controls'
-  back.a11y_label = 'back to the main menu'
+  back.a11y_label = T('a11y.tutorial.back_to_menu')
 
-  access.say('Tutorial runs. ' .. #tutorial.lessons .. ' enemies, ' .. done .. ' done. ' ..
-    'Each one is explained and then fought on its own in a small arena, with a single hero, until you ' ..
-    'clear it. The arrow keys move through the list, enter opens the one you are on, tab reaches the back ' ..
-    'button, and escape goes back.',
-    {interrupt = true, priority = true})
+  access.say(T('a11y.tutorial.list_intro', #tutorial.lessons, done), {interrupt = true, priority = true})
 end
 
 
@@ -324,10 +269,10 @@ function tutorial.show_brief(st, key)
   st.tutorial_key = key
 
   Text2{group = st.tutorial_menu, x = gw/2, y = 24,
-    lines = {{text = '[fg]' .. lesson.name, font = fat_font, alignment = 'center'}}}
+    lines = {{text = '[fg]' .. tutorial.name(lesson), font = fat_font, alignment = 'center'}}}
 
   local lines = {}
-  for _, line in ipairs(tutorial.wrap(lesson.brief, 400)) do
+  for _, line in ipairs(tutorial.wrap(tutorial.brief(lesson), 400)) do
     table.insert(lines, {text = '[bg10]' .. line, font = pixul_font, alignment = 'center'})
   end
   for i, line in ipairs(lines) do
@@ -335,22 +280,22 @@ function tutorial.show_brief(st, key)
   end
 
   local start = Button{group = st.tutorial_menu, x = gw/2, y = START_Y, force_update = true,
-    button_text = 'start the run', fg_color = 'bg10', bg_color = 'bg',
+    button_text = T('ui.tutorial.start'), fg_color = 'bg10', bg_color = 'bg',
     action = function() tutorial.launch(st, key) end}
   start.a11y_order = 1
   start.a11y_group = 'controls'
-  start.a11y_label = 'start the run'
-  start.a11y_detail = 'a small arena holding nothing but ' .. lesson.name .. 's, and one hero'
+  start.a11y_label = T('ui.tutorial.start')
+  start.a11y_detail = T('a11y.tutorial.arena_of', tutorial.name(lesson))
 
   local back = Button{group = st.tutorial_menu, x = gw/2, y = BRIEF_BACK_Y, force_update = true,
-    button_text = 'back to the list (esc)', fg_color = 'bg10', bg_color = 'bg',
+    button_text = T('ui.tutorial.back_to_list'), fg_color = 'bg10', bg_color = 'bg',
     action = function() next_frame(function() build_list(st) end) end}
   back.a11y_order = 2
   back.a11y_group = 'controls'
-  back.a11y_label = 'back to the list of enemies'
+  back.a11y_label = T('a11y.lesson.back')
 
-  access.say(lesson.name .. '. ' .. lesson.brief ..
-    ' Enter starts the run, escape goes back to the list.', {interrupt = true, priority = true})
+  access.say(T('a11y.tutorial.brief_intro', tutorial.name(lesson), tutorial.brief(lesson)),
+    {interrupt = true, priority = true})
 end
 
 
@@ -377,7 +322,7 @@ function tutorial.close(st, silent)
     st.tutorial_menu:destroy()
     st.tutorial_menu = nil
   end
-  if not silent then access.say('Main menu.', {interrupt = true, priority = true}) end
+  if not silent then access.say(T('a11y.screen.main_menu'), {interrupt = true, priority = true}) end
 end
 
 
@@ -448,7 +393,7 @@ function tutorial.launch(st, key)
       main:add(Arena'arena')
       main:go_to('arena', 1, 0, table.copy(lesson.units), {}, 1, 0, nil, lesson)
     end,
-    text = Text({{text = '[wavy, ' .. tostring(state.dark_transitions and 'fg' or 'bg') .. ']starting...',
+    text = Text({{text = '[wavy, ' .. tostring(state.dark_transitions and 'fg' or 'bg') .. ']' .. T('ui.transition.starting'),
       font = pixul_font, alignment = 'center'}}, global_text_tags)}
 end
 
@@ -465,6 +410,6 @@ function tutorial.leave_arena(at)
       main:add(MainMenu'main_menu')
       main:go_to('main_menu', at or true)
     end,
-    text = Text({{text = '[wavy, ' .. tostring(state.dark_transitions and 'fg' or 'bg') .. ']..',
+    text = Text({{text = '[wavy, ' .. tostring(state.dark_transitions and 'fg' or 'bg') .. ']' .. T('ui.transition.dots'),
       font = pixul_font, alignment = 'center'}}, global_text_tags)}
 end

@@ -74,7 +74,7 @@ function access.repeat_last()
   if access.last_message then
     access.tts.speak(access.last_message, true)
   else
-    access.say('nothing to repeat', {interrupt = true, priority = true})
+    access.say(T('a11y.nothing_to_repeat'), {interrupt = true, priority = true})
   end
 end
 
@@ -85,7 +85,7 @@ end
 function access.history_step(delta)
   local n = #access.history
   if n == 0 then
-    access.tts.speak('no messages yet', true)
+    access.tts.speak(T('a11y.no_messages'), true)
     return
   end
   access.history_index = math.max(1, math.min(n, (access.history_index or (n + 1)) + delta))
@@ -149,30 +149,30 @@ local function describe_cards(st)
   for i = 1, 3 do
     local card = st.cards and st.cards[i]
     if card and card.unit and not card.dead then
-      local line = i .. ', ' .. describe.character(card.unit) .. ', ' .. tostring(card.cost or '?') .. ' gold'
-      if card.owned and card.owned_n then line = line .. ', owned' end
+      local line = T('a11y.shop.card', i, describe.character(card.unit), card.cost or '?')
+      if card.owned and card.owned_n then line = line .. T('a11y.shop.owned') end
       table.insert(cards, line .. ', ' .. describe.classes_of(card.unit))
     end
   end
-  if #cards == 0 then return 'Nothing for sale.' end
-  return 'For sale: ' .. table.concat(cards, '. ') .. '.'
+  if #cards == 0 then return T('a11y.shop.nothing_for_sale') end
+  return T('a11y.shop.for_sale', table.concat(cards, '. '))
 end
 
 
 local function describe_shop(st)
-  local parts = {'Shop'}
-  table.insert(parts, 'round ' .. tostring(st.level) .. ' of ' .. 25 * ((st.loop or 0) + 1))
+  local parts = {T('a11y.shop.title')}
+  table.insert(parts, T('a11y.shop.round', st.level, 25 * ((st.loop or 0) + 1)))
   local kind = describe.round_type(st.level, st.loop)
-  if kind then table.insert(parts, kind .. ' next') end
-  if (current_new_game_plus or 0) > 0 then table.insert(parts, 'new game plus ' .. current_new_game_plus) end
-  table.insert(parts, tostring(gold) .. ' gold')
-  table.insert(parts, 'party ' .. tostring(#(st.units or {})) .. ' of ' .. tostring(max_units))
-  table.insert(parts, 'shop level ' .. tostring(st.shop_level))
-  if st.locked then table.insert(parts, 'shop locked') end
+  if kind then table.insert(parts, T('a11y.shop.next_round', kind)) end
+  if (current_new_game_plus or 0) > 0 then table.insert(parts, T('a11y.shop.ng', current_new_game_plus)) end
+  table.insert(parts, T('a11y.gold', gold))
+  table.insert(parts, T('a11y.shop.party', #(st.units or {}), max_units))
+  table.insert(parts, T('a11y.shop.level', st.shop_level))
+  if st.locked then table.insert(parts, T('a11y.shop.locked')) end
   local summary = table.concat(parts, ', ') .. '. ' .. describe_cards(st)
-  summary = summary .. ' Press 1, 2 or 3 to buy, tab and the arrow keys browse, R rerolls, G starts the round.'
+  summary = summary .. ' ' .. T('a11y.shop.keys')
   if #(st.units or {}) == 0 then
-    summary = summary .. ' Your party is empty, so buy a hero first. F5 opens the guide.'
+    summary = summary .. ' ' .. T('a11y.shop.empty_party')
   end
   return summary
 end
@@ -183,18 +183,17 @@ local function announce_passive_choice(st, prefix)
   local names = {}
   for _, card in ipairs(st.cards or {}) do
     if card and not card.dead and card.passive then
-      table.insert(names, tostring(card.card_i or (#names + 1)) .. ', ' .. describe.passive_name(card.passive))
+      table.insert(names, T('a11y.items.card', card.card_i or (#names + 1), describe.passive_name(card.passive)))
     end
   end
   local n = #names
-  local cost = '5 gold'
+  local cost = T('a11y.gold', 5)
   if st.ui and st.ui.objects then
     for _, o in ipairs(st.ui.objects) do
-      if RerollButton and o.is and o:is(RerollButton) and not o.dead and o.free_reroll then cost = 'free' end
+      if RerollButton and o.is and o:is(RerollButton) and not o.dead and o.free_reroll then cost = T('a11y.items.free') end
     end
   end
-  access.say((prefix or '') .. 'Choose one item. ' .. table.concat(names, '. ') ..
-    '. Press 1 to ' .. math.max(n, 1) .. ' to take one, the arrow keys hear what each does, tab moves on to the reroll and your build. R rerolls, ' .. cost .. '.',
+  access.say((prefix or '') .. T('a11y.items.choose', table.concat(names, '. '), math.max(n, 1), cost),
     {interrupt = true, priority = true})
 end
 
@@ -340,19 +339,19 @@ local function install_hooks()
         for _, u in ipairs(self.units or {}) do
           if u.character == character then level_after = u.level end
         end
-        local line = name .. ' bought for ' .. (gold_before - gold) .. ' gold'
+        local line = T('a11y.shop.bought', name, gold_before - gold)
         if level_after > level_before and level_before > 0 then
-          line = line .. '. ' .. name .. ' is now level ' .. level_after
+          line = line .. '. ' .. T('a11y.shop.now_level', name, level_after)
         elseif level_before > 0 then
-          line = line .. ', copy added'
+          line = line .. T('a11y.shop.copy_added')
         end
-        access.say(line .. '. ' .. gold .. ' gold left, party ' ..
-          #(self.units or {}) .. ' of ' .. tostring(max_units), {interrupt = true, priority = true})
+        access.say(line .. '. ' .. T('a11y.shop.gold_left', gold, #(self.units or {}), max_units),
+          {interrupt = true, priority = true})
         access._spoken_gold = gold
       elseif gold < (character_tiers[character] or 0) then
         -- The other two failure cases (party full, unit maxed) already raise
         -- an InfoText, which the tooltip hook speaks.
-        access.say('not enough gold for ' .. name .. ', you have ' .. gold, {interrupt = true, priority = true})
+        access.say(T('a11y.shop.cant_afford', name, gold), {interrupt = true, priority = true})
       end
     end
     return bought
@@ -364,8 +363,8 @@ local function install_hooks()
     local result = shop_gain_gold(self, amount, ...)
     if access.enabled then
       local what = take_pending_sale()
-      access.say((what and (what .. ' sold for ') or 'sold for ') .. tostring(amount) .. ' gold, ' ..
-        tostring(gold) .. ' gold total', {interrupt = true, priority = true})
+      access.say(what and T('a11y.shop.sold_what', what, amount, gold) or T('a11y.shop.sold', amount, gold),
+        {interrupt = true, priority = true})
       access._spoken_gold = gold
     end
     return result
@@ -376,7 +375,7 @@ local function install_hooks()
   BuyScreen.set_cards = function(self, shop_level, dont_spawn_effect, first_call)
     local result = set_cards(self, shop_level, dont_spawn_effect, first_call)
     if access.enabled and not first_call then
-      access.say('Rerolled. ' .. describe_cards(self), {interrupt = true, priority = true})
+      access.say(T('a11y.shop.rerolled') .. ' ' .. describe_cards(self), {interrupt = true, priority = true})
     end
     return result
   end
@@ -386,7 +385,7 @@ local function install_hooks()
   Arena.set_passives = function(self, from_reroll, ...)
     local result = set_passives(self, from_reroll, ...)
     if access.enabled and from_reroll and self.choosing_passives then
-      pcall(announce_passive_choice, self, 'Rerolled. ')
+      pcall(announce_passive_choice, self, T('a11y.shop.rerolled') .. ' ')
     end
     return result
   end
@@ -396,7 +395,7 @@ local function install_hooks()
   local restore = Arena.restore_passives_to_pool
   Arena.restore_passives_to_pool = function(self, j, ...)
     if access.enabled and j and j > 0 and self.cards and self.cards[j] and self.cards[j].passive then
-      access.say(describe.passive_name(self.cards[j].passive) .. ' taken', {interrupt = true, priority = true})
+      access.say(T('a11y.items.taken', describe.passive_name(self.cards[j].passive)), {interrupt = true, priority = true})
     end
     return restore(self, j, ...)
   end
@@ -407,10 +406,8 @@ local function install_hooks()
   Arena.gain_gold = function(self, ...)
     local result = gain_gold(self, ...)
     if access.enabled then
-      access.say('gold gained ' .. tostring(self.gold_gained or 0) ..
-        ', picked up ' .. tostring(self.gold_picked_up or 0) ..
-        ', interest ' .. tostring(self.interest or 0) ..
-        '. Total ' .. tostring(gold) .. ' gold.', {interrupt = false})
+      access.say(T('a11y.arena.gold_breakdown', self.gold_gained or 0, self.gold_picked_up or 0,
+        self.interest or 0, gold), {interrupt = false})
     end
     return result
   end
@@ -427,25 +424,22 @@ local function announce_screen(st, previous)
     -- Accessibility being on by default is the right call (see load_settings),
     -- but a player who does not want it deserves to be told how to stop it.
     -- Once they have touched any accessibility setting, drop the reminder.
-    prefix = state.access_configured and 'SNKRX. '
-      or 'SNKRX. Accessibility is on. Press F2 to turn it off, F1 for the keys, F5 for the guide. '
+    prefix = state.access_configured and (T('ui.title') .. '. ')
+      or (T('ui.title') .. '. ' .. T('a11y.first_run') .. ' ')
   end
   if st.is and st:is(MainMenu) then
     -- Coming back from a tutorial run the screen opens with the tutorial list
     -- already up, and that has announced itself. Saying the menu over the top
     -- of it would cut it off and describe something that is not on screen.
     if st.in_tutorial_menu then return end
-    access.say(prefix .. 'Main menu. Tab moves between groups, the arrow keys move within one, enter chooses. ' ..
-      'Tutorial runs teaches one enemy at a time in a short fight of its own; learn sounds plays every sound ' ..
-      'in the game with a description of each. F1 for the accessibility keys.',
-      {interrupt = true})
+    access.say(prefix .. T('a11y.screen.main_menu') .. ' ' .. T('a11y.screen.main_menu_help'), {interrupt = true})
   elseif st.is and st:is(BuyScreen) then
     -- Coming out of a fight, the round's gold breakdown may still be being
     -- read; queue behind it rather than cut it off.
     local from_arena = previous and previous.is and previous:is(Arena)
     access.say(prefix .. describe_shop(st), {interrupt = not from_arena})
   elseif prefix ~= '' then
-    access.say(prefix .. 'Press F1 for the accessibility keys.', {interrupt = true})
+    access.say(prefix .. T('a11y.press_f1'), {interrupt = true})
   end
   -- The arena announces itself from Arena.on_enter, which fires earlier and
   -- knows about waves and elites.
@@ -460,7 +454,7 @@ local function watch_shop(st)
     watched_gold = gold
     if access._spoken_gold ~= gold then
       access._spoken_gold = gold
-      access.say(tostring(gold) .. ' gold', {interrupt = false})
+      access.say(T('a11y.gold', gold), {interrupt = false})
     end
   end
 
@@ -468,7 +462,7 @@ local function watch_shop(st)
   if watched_locked == nil then watched_locked = locked end
   if locked ~= watched_locked then
     watched_locked = locked
-    access.say(locked and 'shop locked, these cards stay for next round' or 'shop unlocked',
+    access.say(locked and T('a11y.shop.locked_kept') or T('a11y.shop.unlocked'),
       {interrupt = true, priority = true})
   end
 end
@@ -493,10 +487,9 @@ local function watch_screen()
   if paused ~= watched_paused then
     watched_paused = paused
     if paused then
-      access.say('Options. Tab and shift tab move between groups of settings, the arrow keys move within a group, enter changes a setting and backspace changes it the other way. F1 for the accessibility keys.',
-        {interrupt = true})
+      access.say(T('a11y.screen.options'), {interrupt = true})
     else
-      access.say('resumed', {interrupt = true})
+      access.say(T('a11y.resumed'), {interrupt = true})
     end
   end
 
@@ -509,7 +502,7 @@ local function watch_screen()
     if tutorial then
       pcall(access.guide.speak, st)
     else
-      access.say('guide closed', {interrupt = true})
+      access.say(T('a11y.guide_closed'), {interrupt = true})
     end
   end
 
@@ -520,9 +513,9 @@ local function watch_screen()
   if credits ~= watched_credits then
     watched_credits = credits
     if credits then
-      access.say('Credits. Tab moves between groups of links, the arrow keys move within a group, escape closes.', {interrupt = true})
+      access.say(T('a11y.screen.credits'), {interrupt = true})
     else
-      access.say('credits closed', {interrupt = true})
+      access.say(T('a11y.credits_closed'), {interrupt = true})
     end
   end
 
@@ -537,11 +530,7 @@ local function watch_screen()
       pcall(announce_passive_choice, st)
     elseif modal == 'won' then
       local ng = current_new_game_plus or 0
-      access.say('Congratulations, you beat the game. Round ' .. tostring(st.level) .. ' cleared. ' ..
-        'New game plus ' .. ng .. ' is unlocked. The arrow keys browse what to do next: loop continues this run ' ..
-        'at higher difficulty with a bigger party, new game plus starts a fresh harder run, and the credits. ' ..
-        'Tab moves on to the links and to the build you finished with. R restarts from round 1.',
-        {interrupt = false, priority = true})
+      access.say(T('a11y.screen.won', st.level, ng), {interrupt = false, priority = true})
     end
   end
 end
@@ -549,22 +538,16 @@ end
 
 -- ------------------------------------------------------------------- help --
 
+-- Read in order, the first line interrupting and the rest queued behind it.
 local HELP = {
-  'Accessibility keys.',
-  'Anywhere: F1 this help. F2 accessibility off or on. F3 speech on or off. F4 cue volume. F5 the game guide. M repeats the last message. Comma and full stop step back and forward through everything that has been said.',
-  'Menus and shop: controls are gathered into groups, and the group is named as you enter it. Tab and shift tab move to the next and previous group, and the arrow keys move within the group you are in, wrapping round at its ends. Home and end jump to the first and last control on the screen, enter or space chooses, and backspace is the secondary action such as selling. Where the arrow keys are steering the snake, tab moves one control at a time instead.',
-  'Main menu: learn sounds opens a list of every sound in the game, with a description of each one and enter to hear it. Tutorial runs opens a list of every enemy, each one explained and then fought on its own in a short run of its own; escape backs out one step at a time and R repeats a run you lost.',
-  'Shop only: 1, 2 and 3 buy a card, R rerolls the shop, G starts the round, page up and page down move the selected party member forward or back in the snake, shift backspace sells one spare copy of the selected hero. Q reads the round and gold, H reads the party, Y reads your build.',
-  'Arena: A or left arrow turns left, D or right arrow turns right. Q status, W position and heading, T enemies, G loose gold and healing orbs, H every hero\'s health, Y your build. Escape opens the options, where R restarts the run.',
-  'Arena sound: the nearest enemy, the elite, the nearest gold and the nearest healing orb each sound without stopping for as long as they are there, panned to where they are and rising as they get closer. The enemy and the elite hold a steady tone; gold ticks like a flipped coin and an orb glows with a soft chime, so the two things worth chasing never sound like the two things worth avoiding. Each is bright when the thing is in front of you and dull when it is behind, so turning towards something is heard as it brightening. Turn until it is bright and centred and you are heading straight at it.',
-  'Other arena sounds: a fast rattle is an enemy touching you, a ping to one side is a second enemy closing from the other side, a buzz is a shot flying at you, a fluttering tone is a headbutter winding up, a sharp tick is a mine, a wooden knock is the wall you are heading into and it gets faster as you close in, a soft low pad on one side means you are running along that wall, and a wobbling tone marks a spot where enemies are about to appear.',
-  'Arena toggles: F enemy sonar, V wall sonar, C pickup sonar, B holding tones or separate pings.',
-  'Choosing an item: 1 to 4 take a card, R rerolls, the arrow keys read the four cards and tab moves on to the reroll and to your build.',
+  'a11y.help.title', 'a11y.help.anywhere', 'a11y.help.menus', 'a11y.help.main_menu',
+  'a11y.help.shop', 'a11y.help.arena', 'a11y.help.arena_sound', 'a11y.help.other_sounds',
+  'a11y.help.toggles', 'a11y.help.items',
 }
 
 function access.help()
-  access.say(HELP[1], {interrupt = true, priority = true})
-  for i = 2, #HELP do access.say(HELP[i], {interrupt = false, priority = true}) end
+  access.say(T(HELP[1]), {interrupt = true, priority = true})
+  for i = 2, #HELP do access.say(T(HELP[i]), {interrupt = false, priority = true}) end
 end
 
 
@@ -578,7 +561,7 @@ end
 
 local function toggle_setting(current, name, on_text, off_text)
   local value = not current
-  access.say(name .. ' ' .. (value and (on_text or 'on') or (off_text or 'off')),
+  access.say(name .. ' ' .. (value and (on_text or T('a11y.on')) or (off_text or T('a11y.off'))),
     {interrupt = true, priority = true})
   save_settings()
   return value
@@ -590,10 +573,10 @@ function access.toggle()
   access.nav.enabled = access.enabled
   if not access.enabled then
     -- Say it before switching off, otherwise the message never comes out.
-    access.tts.speak('accessibility off', true)
+    access.tts.speak(T('a11y.toggle.accessibility_off'), true)
     access.audio.stop_all()
   else
-    access.say('accessibility on', {interrupt = true, priority = true})
+    access.say(T('a11y.toggle.accessibility_on'), {interrupt = true, priority = true})
   end
   save_settings()
 end
@@ -606,7 +589,7 @@ local function open_guide()
   -- Inside a tutorial run the briefing that was just read is far more use
   -- than the general guide, and there is no other way back to it.
   if st and st.lesson then
-    access.say(st.lesson.name .. '. ' .. st.lesson.brief, {interrupt = true, priority = true})
+    access.say(tutorial.name(st.lesson) .. '. ' .. tutorial.brief(st.lesson), {interrupt = true, priority = true})
     return
   end
   if st and st.is and st:is(BuyScreen) and not st.paused and not st.transitioning then
@@ -643,9 +626,9 @@ local function handle_hotkeys()
   if pressed('f3') then
     access.speech_enabled = not access.speech_enabled
     if access.speech_enabled then
-      access.say('speech on', {interrupt = true, priority = true})
+      access.say(T('a11y.toggle.speech_on'), {interrupt = true, priority = true})
     else
-      access.tts.speak('speech off', true)
+      access.tts.speak(T('a11y.toggle.speech_off'), true)
     end
     save_settings()
     return true
@@ -656,7 +639,7 @@ local function handle_hotkeys()
     if v > 1.001 then v = 0 end
     access.audio.volume = v
     access.audio.play('gold', 0, 1, 1)
-    access.say('cue volume ' .. math.floor(v * 10 + 0.5), {interrupt = true, priority = true})
+    access.say(T('a11y.toggle.cue_volume', math.floor(v * 10 + 0.5)), {interrupt = true, priority = true})
     save_settings()
     return true
   end
@@ -668,21 +651,20 @@ local function handle_hotkeys()
   if pressed('.') then access.history_step(1) return true end
 
   if pressed('f') then
-    access.hud.sonar_enemies = toggle_setting(access.hud.sonar_enemies, 'enemy sonar')
+    access.hud.sonar_enemies = toggle_setting(access.hud.sonar_enemies, T('a11y.toggle.enemy_sonar'))
     return true
   end
   if pressed('v') then
-    access.hud.sonar_walls = toggle_setting(access.hud.sonar_walls, 'wall sonar')
+    access.hud.sonar_walls = toggle_setting(access.hud.sonar_walls, T('a11y.toggle.wall_sonar'))
     return true
   end
   if pressed('c') then
-    access.hud.sonar_pickups = toggle_setting(access.hud.sonar_pickups, 'pickup sonar')
+    access.hud.sonar_pickups = toggle_setting(access.hud.sonar_pickups, T('a11y.toggle.pickup_sonar'))
     return true
   end
   if pressed('b') then
-    access.hud.beacons = toggle_setting(access.hud.beacons, 'tracking tones',
-      'on, enemies and pickups hold a tone you can steer by',
-      'off, back to separate pings')
+    access.hud.beacons = toggle_setting(access.hud.beacons, T('a11y.toggle.tracking_tones'),
+      T('a11y.toggle.tracking_tones_on'), T('a11y.toggle.tracking_tones_off'))
     return true
   end
 
@@ -734,29 +716,41 @@ function access.create_options(self)
     return b
   end
 
-  add(62, 112, 'accessibility: ' .. (access.enabled and 'yes' or 'no'), function(b)
+  local function yn(v) return v and T('ui.yes') or T('ui.no') end
+  local function volume_text() return T('ui.options.cue_volume', math.floor(access.audio.volume * 10 + 0.5)) end
+
+  -- Laid out from the labels rather than from four hardcoded positions, for the
+  -- same reason as every other options row: the labels change length with the
+  -- language. See options_row in main.lua.
+  local enabled_spec, speech_spec, cues_spec, volume_spec = options_row(
+    T('ui.options.accessibility', yn(access.enabled)),
+    T('ui.options.screen_reader', yn(access.speech_enabled)),
+    T('ui.options.audio_cues', yn(access.audio.enabled)),
+    volume_text())
+
+  add(enabled_spec.x, enabled_spec.w, enabled_spec.text, function(b)
     access.toggle()
-    b:set_text('accessibility: ' .. (access.enabled and 'yes' or 'no'))
+    b:set_text(T('ui.options.accessibility', yn(access.enabled)))
   end)
 
-  add(182, 120, 'screen reader: ' .. (access.speech_enabled and 'yes' or 'no'), function(b)
+  add(speech_spec.x, speech_spec.w, speech_spec.text, function(b)
     access.speech_enabled = not access.speech_enabled
-    if access.speech_enabled then access.say('speech on', {interrupt = true, priority = true})
-    else access.tts.speak('speech off', true) end
+    if access.speech_enabled then access.say(T('a11y.toggle.speech_on'), {interrupt = true, priority = true})
+    else access.tts.speak(T('a11y.toggle.speech_off'), true) end
     save_settings()
-    b:set_text('screen reader: ' .. (access.speech_enabled and 'yes' or 'no'))
+    b:set_text(T('ui.options.screen_reader', yn(access.speech_enabled)))
   end)
 
-  add(300, 104, 'audio cues: ' .. (access.audio.enabled and 'yes' or 'no'), function(b)
+  add(cues_spec.x, cues_spec.w, cues_spec.text, function(b)
     access.audio.enabled = not access.audio.enabled
     if not access.audio.enabled then access.audio.stop_all() end
-    access.say('audio cues ' .. (access.audio.enabled and 'on' or 'off'), {interrupt = true, priority = true})
+    access.say(T('a11y.toggle.audio_cues', access.audio.enabled and T('a11y.on') or T('a11y.off')),
+      {interrupt = true, priority = true})
     save_settings()
-    b:set_text('audio cues: ' .. (access.audio.enabled and 'yes' or 'no'))
+    b:set_text(T('ui.options.audio_cues', yn(access.audio.enabled)))
   end)
 
-  local function volume_text() return 'cue volume: ' .. math.floor(access.audio.volume * 10 + 0.5) end
-  add(414, 110, volume_text(), function(b)
+  add(volume_spec.x, volume_spec.w, volume_spec.text, function(b)
     local v = access.audio.volume + 0.1
     if v > 1.001 then v = 0 end
     access.audio.volume = v

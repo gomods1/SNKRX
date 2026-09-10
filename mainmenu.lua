@@ -82,9 +82,15 @@ function MainMenu:on_enter(from, open_tutorial_at)
     end
   end
 
-  self.title_text = Text({{text = '[wavy_mid, fg]SNKRX', font = fat_font, alignment = 'center'}}, global_text_tags)
+  self.title_text = Text({{text = '[wavy_mid, fg]' .. T('ui.title'), font = fat_font, alignment = 'center'}}, global_text_tags)
 
-  self.arena_run_button = Button{group = self.main_ui, x = 55, y = gh/2 - 10, force_update = true, button_text = 'arena run', fg_color = 'bg10', bg_color = 'bg', action = function(b)
+  -- Buttons take an x for their centre, so a column that has to stay flush at
+  -- one edge in any language has to work that centre out from its own label.
+  local function from_left(edge, label) return edge + (pixul_font:get_text_width(label) + 8)/2 end
+  local function from_right(edge, label) return edge - (pixul_font:get_text_width(label) + 8)/2 end
+
+  local arena_label = T('ui.menu.arena_run')
+  self.arena_run_button = Button{group = self.main_ui, x = from_left(21.5, arena_label), y = gh/2 - 10, force_update = true, button_text = arena_label, fg_color = 'bg10', bg_color = 'bg', action = function(b)
     ui_transition2:play{pitch = random:float(0.95, 1.05), volume = 0.5}
     ui_switch2:play{pitch = random:float(0.95, 1.05), volume = 0.5}
     ui_switch1:play{pitch = random:float(0.95, 1.05), volume = 0.5}
@@ -109,44 +115,50 @@ function MainMenu:on_enter(from, open_tutorial_at)
       system.save_state()
       main:add(BuyScreen'buy_screen')
       main:go_to('buy_screen', run.level or 1, run.loop or 0, run.units or {}, passives, run.shop_level or 1, run.shop_xp or 0)
-    end, text = Text({{text = '[wavy, ' .. tostring(state.dark_transitions and 'fg' or 'bg') .. ']starting...', font = pixul_font, alignment = 'center'}}, global_text_tags)}
+    end, text = Text({{text = '[wavy, ' .. tostring(state.dark_transitions and 'fg' or 'bg') .. ']' .. T('ui.transition.starting'), font = pixul_font, alignment = 'center'}}, global_text_tags)}
   end}
   -- One short fight per enemy, each one explained first. It sits next to the
   -- sound reference for the same reason that does: both are things to do
   -- before a run rather than during one, and both exist because the arena is
   -- a bad place to be learning anything.
-  self.tutorial_button = Button{group = self.main_ui, x = 10 + (pixul_font:get_text_width('tutorial runs') + 8)/2, y = gh/2 + 12,
-    force_update = true, button_text = 'tutorial runs', fg_color = 'bg10', bg_color = 'bg', action = function(b)
+  local tutorial_label = T('ui.menu.tutorial_runs')
+  self.tutorial_button = Button{group = self.main_ui, x = from_left(10, tutorial_label), y = gh/2 + 12,
+    force_update = true, button_text = tutorial_label, fg_color = 'bg10', bg_color = 'bg', action = function(b)
     tutorial.open(self)
   end}
   -- The accessibility layer's sound reference. It sits on the main menu because
   -- that is the one screen a player reaches before anything is trying to kill
   -- them, and the sounds are what the rest of the game is played by.
-  self.learn_sounds_button = Button{group = self.main_ui, x = 10 + (pixul_font:get_text_width('learn sounds') + 8)/2, y = gh/2 + 34,
-    force_update = true, button_text = 'learn sounds', fg_color = 'bg10', bg_color = 'bg', action = function(b)
+  local sounds_label = T('ui.menu.learn_sounds')
+  self.learn_sounds_button = Button{group = self.main_ui, x = from_left(10, sounds_label), y = gh/2 + 34,
+    force_update = true, button_text = sounds_label, fg_color = 'bg10', bg_color = 'bg', action = function(b)
     access.sound_lab.open(self)
   end}
-  self.options_button = Button{group = self.main_ui, x = 47, y = gh/2 + 56, force_update = true, button_text = 'options', fg_color = 'bg10', bg_color = 'bg', action = function(b)
+  local options_label = T('ui.menu.options')
+  self.options_button = Button{group = self.main_ui, x = from_left(21.5, options_label), y = gh/2 + 56, force_update = true, button_text = options_label, fg_color = 'bg10', bg_color = 'bg', action = function(b)
     if not self.paused then
       open_options(self)
     else
       close_options(self)
     end
   end}
-  self.quit_button = Button{group = self.main_ui, x = 37, y = gh/2 + 78, force_update = true, button_text = 'quit', fg_color = 'bg10', bg_color = 'bg', action = function(b)
+  local quit_label = T('ui.menu.quit')
+  self.quit_button = Button{group = self.main_ui, x = from_left(21.5, quit_label), y = gh/2 + 78, force_update = true, button_text = quit_label, fg_color = 'bg10', bg_color = 'bg', action = function(b)
     system.save_state()
     steam.shutdown()
     love.event.quit()
   end}
   self.t:every(2, function() self.soundtrack_button.spring:pull(0.025, 200, 10) end)
-  self.soundtrack_button = Button{group = self.main_ui, x = gw - 72, y = gh - 40, force_update = true, button_text = 'buy the soundtrack!', fg_color = 'bg10', bg_color = 'bg', action = function(b)
+  local soundtrack_label = T('ui.menu.soundtrack')
+  self.soundtrack_button = Button{group = self.main_ui, x = from_right(470.5, soundtrack_label), y = gh - 40, force_update = true, button_text = soundtrack_label, fg_color = 'bg10', bg_color = 'bg', link_button = true, action = function(b)
     ui_switch2:play{pitch = random:float(0.95, 1.05), volume = 0.5}
     b.spring:pull(0.2, 200, 10)
     b.selected = true
     ui_switch1:play{pitch = random:float(0.95, 1.05), volume = 0.5}
     system.open_url('https://kubbimusic.com/album/ember')
   end}
-  self.discord_button = Button{group = self.main_ui, x = gw - 92, y = gh - 17, force_update = true, button_text = 'join the community discord!', fg_color = 'bg10', bg_color = 'bg', action = function(b)
+  local discord_label = T('ui.menu.discord')
+  self.discord_button = Button{group = self.main_ui, x = from_right(470.5, discord_label), y = gh - 17, force_update = true, button_text = discord_label, fg_color = 'bg10', bg_color = 'bg', link_button = true, action = function(b)
     ui_switch2:play{pitch = random:float(0.95, 1.05), volume = 0.5}
     b.spring:pull(0.2, 200, 10)
     b.selected = true

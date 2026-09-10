@@ -42,10 +42,11 @@ mkdir -p "$src"
 # files on disk. prism.dll is opened through the LuaJIT FFI, which cannot see
 # inside a .love archive, so accessibility/prism.lua looks for it next to the
 # executable instead. It gets copied into dist/lib/ further down.
-cp -r accessibility assets engine "$src/"
+cp -r accessibility assets engine locales "$src/"
 rm -rf "$src/$runtime"
-cp arena.lua buy_screen.lua enemies.lua main.lua mainmenu.lua media.lua \
-   objects.lua player.lua shared.lua "$src/"
+cp arena.lua buy_screen.lua enemies.lua localization.lua localized_tables.lua \
+   main.lua mainmenu.lua media.lua objects.lua player.lua shared.lua \
+   tutorial.lua "$src/"
 cp LICENSE README.md MANUAL.md ACCESSIBILITY.md "$src/"
 
 # The shim that keeps a Steam-less launch alive, in place of the dev stub of the

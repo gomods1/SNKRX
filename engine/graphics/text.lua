@@ -185,8 +185,18 @@ function Text:parse(text_data)
   for _, line in ipairs(text_data) do
     line.characters = {}
     local current_tags = nil
-    for i = 1, #line.text do
-      local c = line.text:sub(i, i)
+    -- Stepping a whole UTF-8 sequence at a time rather than a byte at a time.
+    -- Each character here is printed and measured on its own, and half of an
+    -- accented letter is neither a printable string nor a measurable one.
+    -- Indices stay byte indices so that the tag spans found above still line up.
+    local i, n = 1, #line.text
+    while i <= n do
+      local b = line.text:byte(i)
+      local width = 1
+      if b >= 0xf0 then width = 4
+      elseif b >= 0xe0 then width = 3
+      elseif b >= 0xc0 then width = 2 end
+      local c = line.text:sub(i, i + width - 1)
       local inside_tags = false
       for _, tag in ipairs(line.tags) do
         if i >= tag.i and i <= tag.j then
@@ -198,6 +208,7 @@ function Text:parse(text_data)
       if not inside_tags then
         table.insert(line.characters, {character = c, visible = true, tags = current_tags or {}})
       end
+      i = i + width
     end
   end
 
