@@ -91,6 +91,9 @@ guide.MECHANICS = {
     '1, 2 and 3 buy a card, R rerolls the shop for 2 gold, backspace sells the party member or item you are on, shift backspace sells one spare copy, and page up and page down move a party member forward or back in the snake. ' ..
     'Enter on the shop level buys experience for 5 gold; higher shop levels offer rarer heroes. Lock keeps the same three cards for next round. G starts the round.',
   'Learning the sounds. The main menu has a learn sounds screen: every sound in the game in a list, each with a description, and enter plays it the way it arrives in the arena. It is the quickest way to get all of this into your ear.',
+  'Learning the enemies. Next to it, tutorial runs is twelve short fights, one per enemy type, in the order you meet them. ' ..
+    'Picking one reads out what that enemy does and how to answer it, and enter then drops you into a small arena holding nothing but that enemy and one hero. ' ..
+    'A run takes ten to thirty seconds, dying only costs you the retry, and clearing one marks it done and offers the next.',
   'Press F1 at any time for the full key list, and M to hear the last message again.',
 }
 

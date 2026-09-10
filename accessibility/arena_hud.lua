@@ -75,6 +75,7 @@ local function playable()
   local a = arena()
   if not a then return false end
   if a.paused or a.died or a.won or a.choosing_passives or a.transitioning then return false end
+  if a.lesson_result then return false end
   if slow_amount and slow_amount < 0.2 then return false end
   return true
 end
@@ -684,6 +685,19 @@ function hud.on_arena_enter(a)
   watched.start_time = a.start_time
   remember_party(a)
 
+  -- A tutorial run has no round number, no waves and no gold. What it has is
+  -- one enemy, which has just been described at length on the screen before
+  -- this one, so all that is worth saying here is which one and how many.
+  if a.lesson then
+    local n = 0
+    for _, squad in ipairs(a.lesson.squads) do n = n + (squad.n or 1) end
+    access.say('Tutorial run, ' .. a.lesson.name .. '. ' .. describe.count(n, 'enemy', 'enemies') ..
+      ', one hero, a smaller arena than usual. Kill everything to finish. Steer with A and D or the ' ..
+      'arrow keys. M repeats what was just said, F5 reads the briefing again. Get ready.',
+      {interrupt = true})
+    return
+  end
+
   local total = 25 * ((a.loop or 0) + 1)
   local parts = {'Round ' .. tostring(a.level) .. ' of ' .. total}
   if a.boss_level then
@@ -708,8 +722,24 @@ end
 
 
 function hud.on_die(a)
+  -- Losing a tutorial run is not losing a run; hud.on_lesson_over has already
+  -- said what it is.
+  if a.lesson then return end
   access.say('You died on round ' .. tostring(a.level) ..
     '. Tab moves on to the party and the items you finished with, R restarts the run, escape opens the menu.', {interrupt = true, priority = true})
+end
+
+
+function hud.on_lesson_over(a, outcome)
+  if outcome == 'passed' then
+    local done = tutorial.completed_count()
+    access.say(a.lesson.name .. ' cleared, and marked done. ' .. done .. ' of ' ..
+      #tutorial.lessons .. ' tutorial runs finished. The arrow keys browse what to do next; R runs this ' ..
+      'one again.', {interrupt = true, priority = true})
+  else
+    access.say('You died. ' .. a.lesson.name .. ' is not finished. R tries it again, and the arrow keys ' ..
+      'reach the way back to the list.', {interrupt = true, priority = true})
+  end
 end
 
 
@@ -749,9 +779,11 @@ function hud.report_status()
     end
     return
   end
-  local parts = {'Round ' .. tostring(a.level) .. ' of ' .. 25 * ((a.loop or 0) + 1)}
+  local parts = {a.lesson and ('Tutorial run, ' .. a.lesson.name) or ('Round ' .. tostring(a.level) .. ' of ' .. 25 * ((a.loop or 0) + 1))}
   if a.start_time and a.start_time > 0 then
     table.insert(parts, 'starting in ' .. a.start_time)
+  elseif a.lesson then
+    table.insert(parts, 'kill everything to finish')
   elseif a.boss_level then
     table.insert(parts, a.boss and not a.boss.dead and 'elite alive' or (a.boss and 'elite down' or 'elite not yet here'))
   elseif a.wave and a.max_waves then
@@ -760,8 +792,11 @@ function hud.report_status()
   table.insert(parts, describe.count(#cache.enemies, 'enemy', 'enemies'))
   local frac = party_health(a)
   if frac then table.insert(parts, 'party health ' .. math.floor(frac * 100 + 0.5) .. ' percent') end
-  table.insert(parts, tostring(gold) .. ' gold')
-  if (a.gold_picked_up or 0) > 0 then table.insert(parts, a.gold_picked_up .. ' picked up this round') end
+  -- A tutorial run pays nothing and costs nothing, so gold there is noise.
+  if not a.lesson then
+    table.insert(parts, tostring(gold) .. ' gold')
+    if (a.gold_picked_up or 0) > 0 then table.insert(parts, a.gold_picked_up .. ' picked up this round') end
+  end
   access.say(table.concat(parts, ', '), {interrupt = true})
 end
 

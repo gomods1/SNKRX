@@ -212,6 +212,20 @@ LAYOUTS.sound_lab = {
   {name = 'controls', match = declares('controls')},
 }
 
+-- The tutorial screen, which is one list of enemies and then one briefing at
+-- a time. Both name their own groups, so both layouts are the same two lines.
+LAYOUTS.tutorial_menu = {
+  {name = 'lessons',  match = declares('lessons')},
+  {name = 'controls', match = declares('controls')},
+}
+LAYOUTS.tutorial_brief = LAYOUTS.tutorial_menu
+
+-- What is offered at the end of a tutorial run: the next enemy, this one
+-- again, and the way out.
+LAYOUTS.lesson_over = {
+  {name = 'what next', match = classes('Button')},
+}
+
 
 -- A widget may name its own group, the way it may state its own label; failing
 -- that the layout decides, and failing that it is still reachable as "other".
@@ -237,6 +251,11 @@ local function collect_groups(st)
   if st.in_tutorial and st.tutorial then return {st.tutorial}, 'tutorial' end
   -- The accessibility layer's own screen: it freezes everything behind it.
   if st.in_sound_lab and st.sound_lab then return {st.sound_lab}, 'sound_lab' end
+  -- The tutorial screen does the same. Its two pages are separate situations
+  -- so that focus is remembered per page rather than carried across.
+  if st.in_tutorial_menu and st.tutorial_menu then
+    return {st.tutorial_menu}, (st.tutorial_page == 'brief') and 'tutorial_brief' or 'tutorial_menu'
+  end
   -- The credits sit in a group of their own and freeze every other button.
   if st.in_credits and st.credits then return {st.credits}, 'credits' end
   -- While a modal is up the screen behind it is inert, so only offer the modal.
@@ -244,6 +263,9 @@ local function collect_groups(st)
     return st.ui and {st.ui} or {}, (st.is and st:is(MainMenu)) and 'menu_options' or 'options'
   end
   if st.choosing_passives then return st.ui and {st.ui} or {}, 'passives' end
+  -- Checked before `died`, because a lost tutorial run sets that flag too and
+  -- what it offers is a retry rather than the end of a run.
+  if st.lesson_result then return st.ui and {st.ui} or {}, 'lesson_over' end
   if st.died then return st.ui and {st.ui} or {}, 'died' end
   if st.won then return st.ui and {st.ui} or {}, 'won' end
   local out = {}
@@ -640,7 +662,7 @@ end
 function nav.arrows_available()
   local st = main and main.current
   if not st then return false end
-  if is(st, 'Arena') and not (st.paused or st.choosing_passives or st.died or st.won) then
+  if is(st, 'Arena') and not (st.paused or st.choosing_passives or st.died or st.won or st.lesson_result) then
     return false
   end
   return #nav.items > 0

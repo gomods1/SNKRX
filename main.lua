@@ -8,6 +8,7 @@ require 'player'
 require 'enemies'
 require 'media'
 require 'accessibility'
+require 'tutorial'
 
 
 function init()
@@ -1896,7 +1897,13 @@ function open_options(self)
       end, 'pause')
     end}
 
-    if not self:is(MainMenu) then
+    -- A tutorial run has no run behind it: the same key and the same place on
+    -- the screen start the lesson over instead.
+    if self.lesson then
+      self.restart_button = Button{group = self.ui, x = gw/2, y = gh - 200, force_update = true, button_text = 'restart lesson (r)',
+        fg_color = 'bg10', bg_color = 'bg', action = function(b) self:restart_lesson() end}
+
+    elseif not self:is(MainMenu) then
       self.restart_button = Button{group = self.ui, x = gw/2, y = gh - 200, force_update = true, button_text = 'restart run (r)', fg_color = 'bg10', bg_color = 'bg', action = function(b)
         self.transitioning = true
         ui_transition2:play{pitch = random:float(0.95, 1.05), volume = 0.5}
@@ -2096,8 +2103,12 @@ function open_options(self)
         ui_switch2:play{pitch = random:float(0.95, 1.05), volume = 0.5}
         ui_switch1:play{pitch = random:float(0.95, 1.05), volume = 0.5}
         TransitionEffect{group = main.transitions, x = gw/2, y = gh/2, color = state.dark_transitions and bg[-2] or fg[0], transition_action = function()
+          slow_amount = 1
+          music_slow_amount = 1
           main:add(MainMenu'main_menu')
-          main:go_to('main_menu')
+          -- Leaving a lesson goes back to the list it was picked from, not to
+          -- the bare menu: nobody opens one lesson and then stops.
+          main:go_to('main_menu', self.lesson and (self.lesson.key or true) or nil)
         end, text = Text({{text = '[wavy, ' .. tostring(state.dark_transitions and 'fg' or 'bg') .. ']..', font = pixul_font, alignment = 'center'}}, global_text_tags)}
       end}
     end

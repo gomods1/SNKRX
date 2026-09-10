@@ -7,7 +7,9 @@ function MainMenu:init(name)
 end
 
 
-function MainMenu:on_enter(from)
+-- open_tutorial_at is set when a tutorial run hands the player back here: true
+-- for the list of enemies, or a lesson key to land straight on that briefing.
+function MainMenu:on_enter(from, open_tutorial_at)
   slow_amount = 1
   trigger:tween(2, main_song_instance, {volume = 0.5, pitch = 1}, math.linear)
 
@@ -109,21 +111,29 @@ function MainMenu:on_enter(from)
       main:go_to('buy_screen', run.level or 1, run.loop or 0, run.units or {}, passives, run.shop_level or 1, run.shop_xp or 0)
     end, text = Text({{text = '[wavy, ' .. tostring(state.dark_transitions and 'fg' or 'bg') .. ']starting...', font = pixul_font, alignment = 'center'}}, global_text_tags)}
   end}
+  -- One short fight per enemy, each one explained first. It sits next to the
+  -- sound reference for the same reason that does: both are things to do
+  -- before a run rather than during one, and both exist because the arena is
+  -- a bad place to be learning anything.
+  self.tutorial_button = Button{group = self.main_ui, x = 10 + (pixul_font:get_text_width('tutorial runs') + 8)/2, y = gh/2 + 12,
+    force_update = true, button_text = 'tutorial runs', fg_color = 'bg10', bg_color = 'bg', action = function(b)
+    tutorial.open(self)
+  end}
   -- The accessibility layer's sound reference. It sits on the main menu because
   -- that is the one screen a player reaches before anything is trying to kill
   -- them, and the sounds are what the rest of the game is played by.
-  self.learn_sounds_button = Button{group = self.main_ui, x = 10 + (pixul_font:get_text_width('learn sounds') + 8)/2, y = gh/2 + 12,
+  self.learn_sounds_button = Button{group = self.main_ui, x = 10 + (pixul_font:get_text_width('learn sounds') + 8)/2, y = gh/2 + 34,
     force_update = true, button_text = 'learn sounds', fg_color = 'bg10', bg_color = 'bg', action = function(b)
     access.sound_lab.open(self)
   end}
-  self.options_button = Button{group = self.main_ui, x = 47, y = gh/2 + 34, force_update = true, button_text = 'options', fg_color = 'bg10', bg_color = 'bg', action = function(b)
+  self.options_button = Button{group = self.main_ui, x = 47, y = gh/2 + 56, force_update = true, button_text = 'options', fg_color = 'bg10', bg_color = 'bg', action = function(b)
     if not self.paused then
       open_options(self)
     else
       close_options(self)
     end
   end}
-  self.quit_button = Button{group = self.main_ui, x = 37, y = gh/2 + 56, force_update = true, button_text = 'quit', fg_color = 'bg10', bg_color = 'bg', action = function(b)
+  self.quit_button = Button{group = self.main_ui, x = 37, y = gh/2 + 78, force_update = true, button_text = 'quit', fg_color = 'bg10', bg_color = 'bg', action = function(b)
     system.save_state()
     steam.shutdown()
     love.event.quit()
@@ -143,11 +153,14 @@ function MainMenu:on_enter(from)
     ui_switch1:play{pitch = random:float(0.95, 1.05), volume = 0.5}
     system.open_url('https://discord.gg/4d6GWmChKY')
   end}
+
+  if open_tutorial_at then tutorial.open(self, open_tutorial_at) end
 end
 
 
 function MainMenu:on_exit()
   access.sound_lab.close(self)
+  tutorial.close(self, true)
   self.floor:destroy()
   self.main:destroy()
   self.post_main:destroy()
@@ -184,6 +197,17 @@ function MainMenu:update(dt)
     access.sound_lab.update(self, dt)
     self:update_game_object(dt*slow_amount)
     if self.sound_lab then self.sound_lab:update(dt*slow_amount) end
+    return
+  end
+
+  -- The tutorial screen freezes the menu behind it for the same reasons the
+  -- sound reference does: the demo snake is noise over a briefing that has to
+  -- be read, and the buttons underneath would take clicks meant for the list.
+  if self.in_tutorial_menu then
+    if input.escape.pressed then tutorial.escape(self) end
+    tutorial.update(self, dt)
+    self:update_game_object(dt*slow_amount)
+    if self.tutorial_menu then self.tutorial_menu:update(dt*slow_amount) end
     return
   end
 
@@ -236,5 +260,10 @@ function MainMenu:draw()
     graphics.rectangle(gw/2, gh/2, 2*gw, 2*gh, nil, nil, modal_transparent_2)
     graphics.rectangle(gw/2, gh/2, 2*gw, 2*gh, nil, nil, modal_transparent_2)
     access.sound_lab.draw(self)
+  end
+  if self.in_tutorial_menu then
+    graphics.rectangle(gw/2, gh/2, 2*gw, 2*gh, nil, nil, modal_transparent_2)
+    graphics.rectangle(gw/2, gh/2, 2*gw, 2*gh, nil, nil, modal_transparent_2)
+    tutorial.draw(self)
   end
 end

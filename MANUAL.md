@@ -113,6 +113,9 @@ Special enemies are announced when they arrive.
 - **Shooters** stop and fire bursts.
 - **Spawners** burst into critters when killed.
 
+The main menu's **tutorial runs** screen fights each of these on its own, one
+short run per enemy, after explaining what it does.
+
 ## Rounds
 
 A round is a set of waves. Each wave spawns when the previous one dies, and the
@@ -171,6 +174,19 @@ the round.
 The main menu has a **learn sounds** screen: every sound in the game in a list,
 each with a description, and Enter plays it the way it arrives in the arena. It
 is the quickest way to get all of this into your ear.
+
+## Learning the enemies
+
+Next to it, **tutorial runs** is twelve short fights, one per enemy type, in the
+order you meet them. Picking one reads out what that enemy does and how to
+answer it, and Enter then drops you into a small arena holding nothing but that
+enemy and one hero. The enemies are weakened but behave exactly as they do in a
+real round, and the elites keep a few escorts, because every elite attack in the
+game is aimed at its own allies.
+
+A run takes ten to thirty seconds. Dying costs nothing — **R** tries it again —
+and clearing one marks it done in your save and offers the next. Inside a run,
+**F5** reads the explanation again.
 
 Press **F1** at any time for the full key list, and **M** to hear the last
 message again.

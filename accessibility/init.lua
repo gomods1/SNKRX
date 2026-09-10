@@ -299,6 +299,18 @@ local function install_hooks()
     return a, b, c
   end
 
+  -- A tutorial run ends by clearing the floor or by dying, and neither goes
+  -- through Arena:quit.
+  local lesson_over = Arena.lesson_over
+  Arena.lesson_over = function(self, outcome, ...)
+    local already = self.lesson_result
+    local result = lesson_over(self, outcome, ...)
+    if access.enabled and not already and self.lesson_result then
+      pcall(access.hud.on_lesson_over, self, outcome)
+    end
+    return result
+  end
+
   -- Arena:quit hands out the round's gold on its way through, and the gold
   -- hook below queues that line. "Arena clear" has to go first, or it would
   -- cut the gold breakdown off.
@@ -419,7 +431,13 @@ local function announce_screen(st, previous)
       or 'SNKRX. Accessibility is on. Press F2 to turn it off, F1 for the keys, F5 for the guide. '
   end
   if st.is and st:is(MainMenu) then
-    access.say(prefix .. 'Main menu. Tab moves between groups, the arrow keys move within one, enter chooses. Learn sounds plays every sound in the game with a description of each. F1 for the accessibility keys.',
+    -- Coming back from a tutorial run the screen opens with the tutorial list
+    -- already up, and that has announced itself. Saying the menu over the top
+    -- of it would cut it off and describe something that is not on screen.
+    if st.in_tutorial_menu then return end
+    access.say(prefix .. 'Main menu. Tab moves between groups, the arrow keys move within one, enter chooses. ' ..
+      'Tutorial runs teaches one enemy at a time in a short fight of its own; learn sounds plays every sound ' ..
+      'in the game with a description of each. F1 for the accessibility keys.',
       {interrupt = true})
   elseif st.is and st:is(BuyScreen) then
     -- Coming out of a fight, the round's gold breakdown may still be being
@@ -535,7 +553,7 @@ local HELP = {
   'Accessibility keys.',
   'Anywhere: F1 this help. F2 accessibility off or on. F3 speech on or off. F4 cue volume. F5 the game guide. M repeats the last message. Comma and full stop step back and forward through everything that has been said.',
   'Menus and shop: controls are gathered into groups, and the group is named as you enter it. Tab and shift tab move to the next and previous group, and the arrow keys move within the group you are in, wrapping round at its ends. Home and end jump to the first and last control on the screen, enter or space chooses, and backspace is the secondary action such as selling. Where the arrow keys are steering the snake, tab moves one control at a time instead.',
-  'Main menu: learn sounds opens a list of every sound in the game, with a description of each one and enter to hear it.',
+  'Main menu: learn sounds opens a list of every sound in the game, with a description of each one and enter to hear it. Tutorial runs opens a list of every enemy, each one explained and then fought on its own in a short run of its own; escape backs out one step at a time and R repeats a run you lost.',
   'Shop only: 1, 2 and 3 buy a card, R rerolls the shop, G starts the round, page up and page down move the selected party member forward or back in the snake, shift backspace sells one spare copy of the selected hero. Q reads the round and gold, H reads the party, Y reads your build.',
   'Arena: A or left arrow turns left, D or right arrow turns right. Q status, W position and heading, T enemies, G loose gold and healing orbs, H every hero\'s health, Y your build. Escape opens the options, where R restarts the run.',
   'Arena sound: the nearest enemy, the elite, the nearest gold and the nearest healing orb each sound without stopping for as long as they are there, panned to where they are and rising as they get closer. The enemy and the elite hold a steady tone; gold ticks like a flipped coin and an orb glows with a soft chime, so the two things worth chasing never sound like the two things worth avoiding. Each is bright when the thing is in front of you and dull when it is behind, so turning towards something is heard as it brightening. Turn until it is bright and centred and you are heading straight at it.',
@@ -585,6 +603,12 @@ end
 -- with its diagrams described; anywhere else the same guide is simply spoken.
 local function open_guide()
   local st = main and main.current
+  -- Inside a tutorial run the briefing that was just read is far more use
+  -- than the general guide, and there is no other way back to it.
+  if st and st.lesson then
+    access.say(st.lesson.name .. '. ' .. st.lesson.brief, {interrupt = true, priority = true})
+    return
+  end
   if st and st.is and st:is(BuyScreen) and not st.paused and not st.transitioning then
     if st.in_tutorial then
       pcall(access.guide.speak, st)

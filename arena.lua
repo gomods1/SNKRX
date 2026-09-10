@@ -7,9 +7,12 @@ function Arena:init(name)
 end
 
 
-function Arena:on_enter(from, level, loop, units, passives, shop_level, shop_xp, lock)
+-- `lesson` turns the arena into a tutorial run: one enemy type, no waves, no
+-- gold and no run to save, cleared by killing everything in it. See tutorial.lua.
+function Arena:on_enter(from, level, loop, units, passives, shop_level, shop_xp, lock, lesson)
   self.hfx:add('condition1', 1)
   self.hfx:add('condition2', 1)
+  self.lesson = lesson
   self.level = level or 1
   self.loop = loop or 0
   self.units = units
@@ -27,7 +30,7 @@ function Arena:on_enter(from, level, loop, units, passives, shop_level, shop_xp,
   trigger:tween(2, main_song_instance, {volume = 0.5, pitch = 1}, math.linear)
 
   steam.friends.setRichPresence('steam_display', '#StatusFull')
-  steam.friends.setRichPresence('text', 'Arena - Level ' .. self.level)
+  steam.friends.setRichPresence('text', self.lesson and ('Tutorial - ' .. self.lesson.name) or ('Arena - Level ' .. self.level))
 
   self.floor = Group()
   self.main = Group():set_as_physics_world(32, 0, 0, {'player', 'enemy', 'projectile', 'enemy_projectile', 'force_field', 'ghost'})
@@ -65,9 +68,12 @@ function Arena:on_enter(from, level, loop, units, passives, shop_level, shop_xp,
   self.enemies = {Seeker, EnemyCritter}
   self.color = self.color or fg[0]
 
-  -- Spawn solids and player
-  self.x1, self.y1 = gw/2 - 0.8*gw/2, gh/2 - 0.8*gh/2
-  self.x2, self.y2 = gw/2 + 0.8*gw/2, gh/2 + 0.8*gh/2
+  -- Spawn solids and player. A tutorial run gets a smaller floor: there is
+  -- only one thing in it, and a full-sized arena would be mostly spent
+  -- steering towards it.
+  local extent = self.lesson and 0.7 or 0.8
+  self.x1, self.y1 = gw/2 - extent*gw/2, gh/2 - extent*gh/2
+  self.x2, self.y2 = gw/2 + extent*gw/2, gh/2 + extent*gh/2
   self.w, self.h = self.x2 - self.x1, self.y2 - self.y1
   self.spawn_points = {
     {x = self.x1 + 32, y = self.y1 + 32, r = math.pi/4},
@@ -102,9 +108,12 @@ function Arena:on_enter(from, level, loop, units, passives, shop_level, shop_xp,
     unit.character_hp = chp
   end
 
-  if self.level == 1000 then
+  if self.lesson then
+    self:start_lesson()
+
+  elseif self.level == 1000 then
     self.level_1000_text = Text2{group = self.ui, x = gw/2, y = gh/2, lines = {{text = '[fg, wavy_mid]SNKRX', font = fat_font, alignment = 'center'}}}
-  
+
   elseif (self.level - (25*self.loop)) % 6 == 0 or self.level % 25 == 0 then
     self.boss_level = true
     self.start_time = 3
@@ -248,7 +257,7 @@ function Arena:on_enter(from, level, loop, units, passives, shop_level, shop_xp,
     end
   end
 
-  if self.level == 1 then
+  if self.level == 1 and not self.lesson then
     local t1 = Text2{group = self.floor, x = gw/2, y = gh/2 + 2, sx = 0.6, sy = 0.6, lines = {{text = '[light_bg]<- or a         -> or d', font = fat_font, alignment = 'center'}}}
     local t2 = Text2{group = self.floor, x = gw/2, y = gh/2 + 18, lines = {{text = '[light_bg]turn left                                      turn right', font = pixul_font, alignment = 'center'}}}
     local t3 = Text2{group = self.floor, x = gw/2, y = gh/2 + 46, sx = 0.6, sy = 0.6, lines = {{text = '[light_bg]esc - options', font = fat_font, alignment = 'center'}}}
@@ -284,7 +293,12 @@ function Arena:on_enter(from, level, loop, units, passives, shop_level, shop_xp,
     Star{group = star_group, x = p.x, y = p.y}
   end)
 
+  -- A tutorial run spawns its enemies once and never again; anything blocked
+  -- at the spawn point is simply one fewer of them, which is a far better
+  -- outcome than a lesson quietly topping itself up while it is being read.
   self.enemy_spawns_prevented = 0
+  if self.lesson then return end
+
   self.t:every(8, function()
     if self.died then return end
     if self.arena_clear_text then return end
@@ -340,6 +354,8 @@ function Arena:on_exit()
   self.units = nil
   self.passives = nil
   self.player = nil
+  self.lesson = nil
+  self.lesson_point = nil
   self.t = nil
   self.springs = nil
   self.flashes = nil
@@ -352,7 +368,7 @@ function Arena:update(dt)
     main_song_instance = _G[random:table{'song1', 'song2', 'song3', 'song4', 'song5'}]:play{volume = 0.5}
   end
 
-  if not self.paused and not self.died and not self.won then
+  if not self.paused and not self.died and not self.won and not self.lesson then
     run_time = run_time + dt
   end
 
@@ -366,7 +382,11 @@ function Arena:update(dt)
     end
   end
 
-  if self.paused or self.died or self.won and not self.transitioning then
+  -- R restarts the run everywhere else; inside a tutorial run there is no run
+  -- to restart, so it repeats the lesson instead.
+  if self.lesson then
+    if (self.paused or self.lesson_result) and input.r.pressed then self:restart_lesson() end
+  elseif self.paused or self.died or self.won and not self.transitioning then
     if input.r.pressed then
       self.transitioning = true
       ui_transition2:play{pitch = random:float(0.95, 1.05), volume = 0.5}
@@ -773,7 +793,17 @@ function Arena:draw()
     graphics.pop()
   end
 
-  if self.boss_level then
+  if self.lesson then
+    graphics.push(self.x1 + 60, self.y1 - 10, 0, self.hfx.condition2.x, self.hfx.condition2.x)
+      graphics.print_centered('tutorial: ' .. self.lesson.name, fat_font, self.x1 + 60, self.y1 - 10, 0, 0.6, 0.6, nil, nil, fg[0])
+    graphics.pop()
+    if self.start_time <= 0 then
+      graphics.push(self.x2 - 50, self.y1 - 10, 0, self.hfx.condition2.x, self.hfx.condition2.x)
+        graphics.print_centered('kill them all', fat_font, self.x2 - 50, self.y1 - 10, 0, 0.6, 0.6, nil, nil, fg[0])
+      graphics.pop()
+    end
+
+  elseif self.boss_level then
     if self.start_time <= 0 then
       graphics.push(self.x2 - 106, self.y1 - 10, 0, self.hfx.condition2.x, self.hfx.condition2.x)
         graphics.print_centered('kill the elite', fat_font, self.x2 - 106, self.y1 - 10, 0, 0.6, 0.6, nil, nil, fg[0])
@@ -803,7 +833,7 @@ function Arena:draw()
 
 
   if self.level == 20 and self.trailer then graphics.rectangle(gw/2, gh/2, 2*gw, 2*gh, nil, nil, modal_transparent) end
-  if self.choosing_passives or self.won or self.paused or self.died then graphics.rectangle(gw/2, gh/2, 2*gw, 2*gh, nil, nil, modal_transparent) end
+  if self.choosing_passives or self.won or self.paused or self.died or self.lesson_result then graphics.rectangle(gw/2, gh/2, 2*gw, 2*gh, nil, nil, modal_transparent) end
   self.ui:draw()
 
   if self.shop_text then self.shop_text:draw(gw - 40, gh - 17) end
@@ -814,6 +844,10 @@ end
 
 
 function Arena:die()
+  -- A tutorial run has no run behind it to save or abandon, and losing one is
+  -- a retry rather than an ending.
+  if self.lesson then return self:lesson_over('failed') end
+
   if not self.died_text and not self.won and not self.arena_clear_text then
     input:set_mouse_visible(true)
     self.t:cancel('divine_punishment')
@@ -870,6 +904,160 @@ function Arena:die()
     end)
     return true
   end
+end
+
+
+-- ------------------------------------------------------------ tutorial runs --
+
+-- Everything a lesson needs that a round does not: its own countdown, one
+-- spawn, and a clear condition that waits for the mines as well as the
+-- enemies, because clearing a room of exploders leaves the room still armed.
+function Arena:start_lesson()
+  self.win_condition = 'lesson'
+  self.start_time = 3
+  self.lesson_point = {x = gw/2, y = self.y1 + 36}
+
+  -- The hero is picked for how long it survives and then held back so that
+  -- the fight lasts long enough to watch. Levelling it down instead would cut
+  -- its health with its damage, and a lesson that ends because the reader was
+  -- reading teaches nothing. lesson_dmg_m is a named multiplier Player:update
+  -- folds into buff_dmg_m, so it survives the per-frame recalculation.
+  for _, unit in ipairs(self.player:get_all_units()) do
+    unit.lesson_dmg_m = self.lesson.hero_dmg_m or 0.3
+  end
+
+  self.t:after(1, function()
+    self.t:every(1, function()
+      if self.start_time > 1 then alert1:play{volume = 0.5} end
+      self.start_time = self.start_time - 1
+      self.hfx:use('condition1', 0.25, 200, 10)
+    end, 3, function()
+      alert1:play{pitch = 1.2, volume = 0.5}
+      camera:shake(4, 0.25)
+      self.spawning_enemies = true
+      SpawnMarker{group = self.effects, x = self.lesson_point.x, y = self.lesson_point.y}
+      self.t:after(1.125, function() self:spawn_lesson_enemies() end)
+      -- Only start watching for a clear floor once something has been put on
+      -- it, or the run would end on the frame it began.
+      self.t:after(2, function()
+        self.t:every(function() return not self.spawning_enemies and self:lesson_clear() end,
+          function() self:lesson_over('passed') end)
+      end)
+    end)
+  end)
+end
+
+
+function Arena:lesson_clear()
+  if #self.main:get_objects_by_classes(self.enemies) > 0 then return false end
+  for _, mine in ipairs(self.main:get_objects_by_class(ExploderMine)) do
+    if not mine.dead then return false end
+  end
+  return true
+end
+
+
+function Arena:spawn_lesson_enemies()
+  local p = self.lesson_point
+  local queue = {}
+  for _, squad in ipairs(self.lesson.squads) do
+    for _ = 1, (squad.n or 1) do table.insert(queue, squad) end
+  end
+
+  for i, squad in ipairs(queue) do
+    local o = self.spawn_offsets[((i - 1) % #self.spawn_offsets) + 1]
+    self.t:after((i - 1)*0.15, function()
+      SpawnEffect{group = self.effects, x = p.x + o.x, y = p.y + o.y, action = function(x, y)
+        spawn1:play{pitch = random:float(0.8, 1.2), volume = 0.15}
+        local e = Seeker{group = self.main, x = x, y = y, character = 'seeker', level = squad.level or 4,
+          boss = squad.boss,
+          speed_booster = squad.kind == 'speed_booster', exploder = squad.kind == 'exploder',
+          shooter = squad.kind == 'shooter', headbutter = squad.kind == 'headbutter',
+          tank = squad.kind == 'tank', spawner = squad.kind == 'spawner'}
+        -- Scaled after the fact, and to absolute numbers rather than
+        -- multipliers, so that a lesson's difficulty stays where it was set
+        -- when the level next to it is changed for flavour. Neither of these
+        -- buffs is touched by Seeker:update, so both survive.
+        if squad.hp then
+          e.buff_hp_m = (e.buff_hp_m or 1)*(squad.hp/e.max_hp)
+          e:calculate_stats()
+          e.hp = e.max_hp
+        end
+        if squad.dmg then
+          e.buff_dmg_m = (e.buff_dmg_m or 1)*(squad.dmg/e.dmg)
+          e:calculate_stats()
+        end
+        if squad.boss then self.boss = e end
+      end}
+    end)
+  end
+
+  self.t:after(#queue*0.15 + 0.6, function() self.spawning_enemies = false end, 'spawning_enemies')
+end
+
+
+function Arena:lesson_over(outcome)
+  if self.lesson_result then return true end
+  self.lesson_result = outcome
+  input:set_mouse_visible(true)
+  self.t:cancel('divine_punishment')
+  if outcome == 'failed' then self.died = true end
+  if outcome == 'passed' then tutorial.mark_complete(self.lesson.key) end
+
+  self.t:tween(1.5, self, {main_slow_amount = 0}, math.linear, function() self.main_slow_amount = 0 end)
+  self.t:tween(1.5, _G, {music_slow_amount = 0}, math.linear, function() music_slow_amount = 0 end)
+  trigger:tween(1.5, camera, {x = gw/2, y = gh/2, r = 0}, math.linear, function() camera.x, camera.y, camera.r = gw/2, gh/2, 0 end)
+
+  local passed = outcome == 'passed'
+  if passed then
+    _G[random:table{'ui_switch1', 'ui_switch2'}]:play{pitch = random:float(0.95, 1.05), volume = 0.5}
+  end
+
+  self.lesson_text = Text2{group = self.ui, x = gw/2, y = gh/2 - 40, lines = {
+    {text = passed and '[wavy_mid, cbyc2]lesson complete' or '[wavy_mid, cbyc]you died...',
+      font = fat_font, alignment = 'center', height_multiplier = 1.25},
+  }}
+  Text2{group = self.ui, x = gw/2, y = gh/2 - 16, lines = {
+    {text = '[bg10]' .. self.lesson.name, font = pixul_font, alignment = 'center'}}}
+
+  local y = gh/2 + 12
+  local function add(text, label, action)
+    local b = Button{group = self.ui, x = gw/2, y = y, force_update = true, button_text = text,
+      fg_color = 'bg10', bg_color = 'bg', action = function() if not self.transitioning then action() end end}
+    b.a11y_label = label
+    y = y + 22
+    return b
+  end
+
+  local next_lesson = passed and tutorial.next_incomplete(self.lesson.key) or nil
+  if next_lesson then
+    add('next: ' .. next_lesson.name, 'next lesson, ' .. next_lesson.name,
+      function() self.transitioning = true tutorial.leave_arena(next_lesson.key) end)
+  end
+  self.restart_button = add(passed and 'run it again (r)' or 'try again (r)',
+    passed and 'run this lesson again' or 'try this lesson again',
+    function() self:restart_lesson() end)
+  add('back to the tutorial list', 'back to the list of enemies',
+    function() self.transitioning = true tutorial.leave_arena() end)
+
+  return true
+end
+
+
+function Arena:restart_lesson()
+  if self.transitioning then return end
+  self.transitioning = true
+  local lesson = self.lesson
+  ui_transition2:play{pitch = random:float(0.95, 1.05), volume = 0.5}
+  ui_switch1:play{pitch = random:float(0.95, 1.05), volume = 0.5}
+  TransitionEffect{group = main.transitions, x = gw/2, y = gh/2, color = state.dark_transitions and bg[-2] or fg[0],
+    transition_action = function()
+      slow_amount = 1
+      music_slow_amount = 1
+      main:add(Arena'arena')
+      main:go_to('arena', 1, 0, table.copy(lesson.units), {}, 1, 0, nil, lesson)
+    end, text = Text({{text = '[wavy, ' .. tostring(state.dark_transitions and 'fg' or 'bg') .. ']again...',
+      font = pixul_font, alignment = 'center'}}, global_text_tags)}
 end
 
 

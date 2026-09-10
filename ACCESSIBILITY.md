@@ -15,9 +15,10 @@ to the system's own text-to-speech.
 diagrams described, and then explains how every mechanic sounds and how it is
 reached from the keyboard. F1 reads the key list.
 
-The main menu also has a **learn sounds** screen: every sound the game makes,
-in a list, with a description of each and Enter to hear it played the way it
-arrives in the arena.
+The main menu also has two practice screens. **learn sounds** lists every sound
+the game makes, with a description of each and Enter to hear it played the way
+it arrives in the arena. **tutorial runs** does the same job for the enemies:
+one short fight per enemy type, each one explained before you meet it.
 
 The same guide is written out in [`MANUAL.md`](MANUAL.md), for reading rather
 than hearing. `./build_manual.sh` runs it through pandoc into
@@ -90,6 +91,8 @@ itself.
 | Victory screen | what next, links, your party, your items |
 | Credits | people, libraries, music, sound, playtesters, close |
 | Learn sounds | sounds, controls |
+| Tutorial runs | lessons, controls |
+| End of a tutorial run | what next |
 
 A group with nothing in it is not there to be tabbed into: before you own an
 item, the shop has no items group. Anything a screen puts on the keyboard that
@@ -153,6 +156,31 @@ noise. `Escape` goes back.
 
 It is the fastest way to get the vocabulary below into your ear, and worth ten
 minutes before the first run.
+
+## Learning the enemies
+
+Knowing that a fluttering tone means a headbutter is winding up is only half of
+it; the other half is knowing what a headbutter then does, and the arena is a
+bad place to find out. The main menu's **tutorial runs** screen is twelve short
+fights, one per enemy type, in the order you will meet them: the six that turn
+up in ordinary rounds, the spawner, and the five elites that end rounds six,
+twelve, eighteen, twenty-four and twenty-five.
+
+Picking one reads out what that enemy does and how to answer it, on screen as
+well as aloud, and `Enter` then drops you into a smaller-than-usual arena
+holding nothing but that enemy and one hero. The enemies are weakened but
+otherwise exactly the ones from a real round, and they behave exactly as they
+do there — the elites keep a few escorts, because every elite attack in the
+game is aimed at its own allies. Kill everything to finish.
+
+A run takes between ten and thirty seconds. Dying costs nothing: `R` tries it
+again, and the arrow keys reach a way back to the list. Clearing one marks it
+done in your save and offers the next one you have not finished, so the twelve
+can be worked through in one sitting or picked at. `Escape` backs out one step
+at a time — off a briefing to the list, off the list to the menu.
+
+Inside a tutorial run, **F5** reads the briefing again, and the options screen
+offers *restart lesson* where it would normally offer *restart run*.
 
 ## What the sounds mean
 
@@ -257,9 +285,18 @@ on the shop screen, one line in `engine/init.lua` to shut speech down cleanly,
 and the learn sounds button and its modal in `mainmenu.lua`. Everything else is
 done by wrapping methods at startup, so the game's own logic stays untouched.
 The wrapped methods are the tooltip (`InfoText:activate`), the spawn marker,
-enemy projectiles, mines, boss lightning, the snake's wall collision, and the
-arena and shop methods that mark a round starting, ending, being won or lost,
-cards being dealt, and gold changing hands.
+enemy projectiles, mines, boss lightning, the snake's wall collision, the end
+of a tutorial run, and the arena and shop methods that mark a round starting,
+ending, being won or lost, cards being dealt, and gold changing hands.
+
+Tutorial runs are game content rather than part of this layer, so they live in
+`tutorial.lua` at the repository root: the twelve lessons as data, the main-menu
+screen that lists them, and the briefing. The fight itself is an ordinary
+`Arena` in lesson mode — `Arena:on_enter` takes a lesson as its last argument
+and branches to `start_lesson` instead of setting up waves — which is what
+makes every sonar, report and announcement in this layer work inside a lesson
+without a line of extra code. Adding an enemy to the list is a new entry in
+`tutorial.lessons` and nothing else.
 
 Keyboard navigation works by warping the real mouse pointer onto the focused
 widget and injecting a click for one frame, which means every existing tooltip,
@@ -269,8 +306,9 @@ mouse users are never fought over. Selling a spare copy is the one action done
 directly rather than through a click, because the spare-copy tiles are skipped
 by Tab. A widget can set `a11y_label`, `a11y_detail`, `a11y_order` and
 `a11y_group` to state outright what it is called, where it comes in the reading
-order and which group it belongs to; the learn sounds list is built that way,
-because its two columns would otherwise be read across rather than down.
+order and which group it belongs to; the learn sounds and tutorial run lists are
+built that way, because their two columns would otherwise be read across rather
+than down.
 
 Grouping lives in one table per screen in `ui_nav.lua`, each a list of groups in
 the order Tab visits them, and the first group whose match accepts a widget
