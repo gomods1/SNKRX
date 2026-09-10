@@ -1465,19 +1465,38 @@ function build_options(self)
   end}
 
   access.create_options(self)
+
+  -- Which widgets on the screen belong to the panel. The shop keeps its own ui
+  -- group updating while it is paused, so without this the buttons underneath
+  -- take the panel's clicks as well; see GameObject:accepts_presses.
+  for _, name in ipairs(option_widgets) do
+    if self[name] then self[name].options_widget = true end
+  end
+  for _, b in ipairs(self.access_buttons or {}) do b.options_widget = true end
 end
 
 
--- The panel is rebuilt in place so the new language is visible immediately.
--- The screen behind it is not, because tearing down a shop or an arena to
--- relabel it is not worth the risk; the main menu is cheap and safe to rebuild,
--- so it is done when the panel closes.
+-- The panel is rebuilt in place, on the next frame, so the new language is
+-- visible immediately. The screen behind it is not, because tearing down a shop
+-- or an arena to relabel it is not worth the risk; the main menu is cheap and
+-- safe to rebuild, so it is done when the panel closes.
 function change_language(self)
   system.save_state()
-  destroy_option_widgets(self)
-  build_options(self)
   if self:is(MainMenu) then self.language_changed = true end
   access.say(T('a11y.language_set', loc.language_name()), {interrupt = true, priority = true})
+
+  -- A frame late, because this runs from inside the language button's own
+  -- action and so from inside the update of the group the panel lives in:
+  -- tearing that group down while it is being iterated is what tutorial.lua's
+  -- next_frame exists to avoid, and the new button would land under the same
+  -- cursor in a frame whose click has not finished being handled. Nothing is
+  -- rebuilt if the panel has been closed in the meantime; close_options
+  -- rebuilds the menu underneath instead.
+  trigger:after(0.01, function()
+    if main.current ~= self or not self.paused then return end
+    destroy_option_widgets(self)
+    build_options(self)
+  end)
 end
 
 

@@ -30,6 +30,8 @@ function GameObject:init_game_object(args)
   self.r = self.r or 0
   self.sx, self.sy = self.sx or 1, self.sy or 1
   self.id = self.id or random:uid()
+  -- Which frame this object came into existence on; see GameObject:pressed.
+  self.created_frame = frame
   self.t = Trigger()
   self.springs = Springs()
   self.flashes = Flashes()
@@ -70,6 +72,38 @@ function GameObject:update_game_object(dt)
       end
     end
   end
+end
+
+
+-- Input is read once at the top of a frame and every flag it sets stays set for
+-- the whole of it. A widget built midway through a frame -- by the very press
+-- still being handled, when a panel tears itself down and lays itself out again
+-- -- therefore arrives in a frame where that press still reads as new, and
+-- lands under the cursor that made it. It fires the same action, which builds
+-- another widget, which fires again: the frame never ends and the game hangs.
+-- That is what pressing the options screen's language button used to do.
+--
+-- So anything that acts on a press asks the object rather than reading input
+-- directly, and an object only ever answers presses that happened after it
+-- existed. Objects live for many frames, so this costs a press only in the one
+-- frame where acting on it was never right in the first place.
+--
+-- The same question answers a second one. The options panel is drawn over the
+-- screen it was opened on, but on the shop it shares a group with that screen's
+-- own buttons and they keep updating underneath it -- and the panel's top row
+-- lands on the button that restarts the run. A click meant for the panel was
+-- taken by both. While the panel is up it owns every press on the screen.
+function GameObject:accepts_presses()
+  if self.created_frame == frame then return false end
+  local st = main and main.current
+  if st and st.paused and not self.options_widget then return false end
+  return true
+end
+
+
+function GameObject:pressed(action)
+  local a = input[action]
+  return (a and a.pressed and self:accepts_presses()) or false
 end
 
 

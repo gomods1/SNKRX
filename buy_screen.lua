@@ -427,7 +427,7 @@ function SteamFollowButton:update(dt)
   self:update_game_object(dt)
   if main.current.in_credits then return end
 
-  if self.selected and input.m1.pressed then
+  if self.selected and self:pressed'm1' then
     ui_switch2:play{pitch = random:float(0.95, 1.05), volume = 0.5}
     self.spring:pull(0.2, 200, 10)
     self.selected = true
@@ -484,7 +484,7 @@ end
 function WishlistButton:update(dt)
   self:update_game_object(dt)
 
-  if self.selected and input.m1.pressed then
+  if self.selected and self:pressed'm1' then
     ui_switch2:play{pitch = random:float(0.95, 1.05), volume = 0.5}
     self.spring:pull(0.2, 200, 10)
     self.selected = true
@@ -541,7 +541,7 @@ function RestartButton:update(dt)
   if main.current.in_credits then return end
   self:update_game_object(dt)
 
-  if self.selected and input.m1.pressed then
+  if self.selected and self:pressed'm1' then
     main.current.transitioning = true
     ui_transition2:play{pitch = random:float(0.95, 1.05), volume = 0.5}
     ui_switch2:play{pitch = random:float(0.95, 1.05), volume = 0.5}
@@ -615,7 +615,7 @@ function Button:update(dt)
   if main.current.in_credits and not self.credits_button then return end
 
   if self.hold_button then
-    if self.selected and input.m1.pressed then
+    if self.selected and self:pressed'm1' then
       self.press_time = love.timer.getTime()
       self.spring:pull(0.2, 200, 10)
     end
@@ -631,12 +631,12 @@ function Button:update(dt)
       self.spring:pull(0.1, 200, 10)
     end
   else
-    if self.selected and input.m1.pressed then
+    if self.selected and self:pressed'm1' then
       if self.action then
         self:action()
       end
     end
-    if self.selected and input.m2.pressed then
+    if self.selected and self:pressed'm2' then
       if self.action_2 then
         self:action_2()
       end
@@ -710,7 +710,7 @@ function GoButton:update(dt)
   -- Enter normally starts the round from anywhere on the shop screen. With
   -- keyboard navigation on, Enter belongs to whatever widget has focus and G
   -- takes over as the "start the round" key; see access.enter_starts_round.
-  if ((self.selected and input.m1.pressed) or access.enter_starts_round()) and not self.transitioning then
+  if ((self.selected and self:pressed'm1') or (self:accepts_presses() and access.enter_starts_round())) and not self.transitioning then
     if #self.parent.units == 0 then
       if not self.info_text then
         error1:play{pitch = random:float(0.95, 1.05), volume = 0.5}
@@ -781,7 +781,7 @@ end
 function LockButton:update(dt)
   self:update_game_object(dt)
 
-  if self.selected and input.m1.pressed then
+  if self.selected and self:pressed'm1' then
     self.parent.locked = not self.parent.locked
     if not self.parent.locked then locked_state = nil end
     if self.parent.locked then
@@ -838,7 +838,7 @@ end
 function LevelButton:update(dt)
   self:update_game_object(dt)
 
-  if self.selected and input.m1.pressed then
+  if self.selected and self:pressed'm1' then
     if self.parent.shop_level >= 5 then return end
     if gold < 5 then
       self.spring:pull(0.2, 200, 10)
@@ -871,7 +871,7 @@ function LevelButton:update(dt)
     end
   end
 
-  if self.selected and input.m2.pressed then
+  if self.selected and self:pressed'm2' then
     if self.parent.shop_level <= 1 then return end
     if gold < 10 then
       self.spring:pull(0.2, 200, 10)
@@ -1012,7 +1012,7 @@ end
 function RerollButton:update(dt)
   self:update_game_object(dt)
 
-  if (self.selected and input.m1.pressed) or input.r.pressed then
+  if (self.selected and self:pressed'm1') or self:pressed'r' then
     if self.parent:is(BuyScreen) then
       if gold < 2 then
         self.spring:pull(0.2, 200, 10)
@@ -1193,7 +1193,7 @@ function CharacterPart:update(dt)
   if self.cant_click then return end
 
   if not self.parent:is(CharacterPart) then
-    if input.m1.pressed and self.colliding_with_mouse then
+    if self:pressed'm1' and self.colliding_with_mouse then
       self.grabbed = true
       self.parent.unit_grabbed = self
     end
@@ -1231,7 +1231,7 @@ function CharacterPart:update(dt)
     end
   end
 
-  if self.selected and input.m2.pressed and not self.just_created then
+  if self.selected and self:pressed'm2' and not self.just_created then
     _G[random:table{'coins1', 'coins2', 'coins3'}]:play{pitch = random:float(0.95, 1.05), volume = 0.5}
     if self.reserve then
       self.parent:gain_gold(self:get_sale_price())
@@ -1388,7 +1388,7 @@ function PassiveCard:update(dt)
   self:update_game_object(dt)
   self.passive_name:update(dt)
 
-  if ((self.selected and input.m1.pressed) or input[tostring(self.card_i)].pressed) and self.arena.choosing_passives then
+  if ((self.selected and self:pressed'm1') or self:pressed(tostring(self.card_i))) and self.arena.choosing_passives then
     self.arena.choosing_passives = false
     table.insert(self.arena.passives, {passive = self.passive, level = 1, xp = 0})
     self.arena:restore_passives_to_pool(self.card_i)
@@ -1459,7 +1459,7 @@ function ItemCard:update(dt)
 
   if self.parent:is(Arena) then return end
 
-  if self.selected and input.m1.pressed and not self.unlevellable then
+  if self.selected and self:pressed'm1' and not self.unlevellable then
     if self.level >= 3 then return end
     if gold < 5 then
       self.spring:pull(0.2, 200, 10)
@@ -1502,7 +1502,7 @@ function ItemCard:update(dt)
     end
   end
 
-  if self.selected and input.m2.pressed then
+  if self.selected and self:pressed'm2' then
     _G[random:table{'coins1', 'coins2', 'coins3'}]:play{pitch = random:float(0.95, 1.05), volume = 0.5}
     self.parent:gain_gold((self.level == 1 and 10) or (self.level == 2 and 20) or (self.level == 3 and 30))
     table.insert(run_passive_pool, self.passive)
@@ -1637,7 +1637,7 @@ end
 function ShopCard:update(dt)
   self:update_game_object(dt)
 
-  if (self.selected and input.m1.pressed) or input[tostring(self.i)].pressed then
+  if (self.selected and self:pressed'm1') or self:pressed(tostring(self.i)) then
     if self.parent:buy(self.unit, self.i) then
       ui_switch1:play{pitch = random:float(0.95, 1.05), volume = 0.5}
       _G[random:table{'coins1', 'coins2', 'coins3'}]:play{pitch = random:float(0.95, 1.05), volume = 0.5}
