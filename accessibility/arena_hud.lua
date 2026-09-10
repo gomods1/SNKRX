@@ -5,11 +5,16 @@
 -- control is "turn left" or "turn right". A player needs a continuous sense of
 -- where the threats are, not a sentence about them two seconds later.
 --
--- So this module runs four continuous sonars -- enemies, the elite, walls,
+-- So this module runs a set of continuous sonars -- enemies, the elite, walls,
 -- pickups -- plus spoken announcements for the moments that matter (a wave, a
 -- hero lost, a headbutter charging, a mine) and a set of on-demand reports for
 -- the things that are better said than sung: wave progress, party health,
 -- build composition.
+--
+-- The enemy, elite and pickup sonars are *beacons*: one tone per target that
+-- holds for as long as the target is there, panning and rising as the snake
+-- moves relative to it. Walls keep their knocking pings, because a wall is not
+-- something you steer towards and a held tone for one would never stop.
 
 local hud = {}
 access.hud = hud
@@ -20,19 +25,23 @@ hud.sonar_enemies = true
 hud.sonar_walls = true
 hud.sonar_pickups = true
 hud.announce_combat = true
+-- Continuous tones for the things worth steering towards or away from, rather
+-- than pings that only say where something was when the timer last came round.
+hud.beacons = true
 
-local timers = {enemy = 0, wall = 0, edge = 0, pickup = 0, scan = 0, boss = 0}
+local timers = {enemy = 0, wall = 0, edge = 0, pickup = 0, scan = 0, boss = 0, pinch = 0}
 local cache = {enemies = {}, pickups = {}}
 local watched = {}
 
 
 function hud.reset()
-  timers = {enemy = 0, wall = 0, edge = 0, pickup = 0, scan = 0, boss = 0}
+  timers = {enemy = 0, wall = 0, edge = 0, pickup = 0, scan = 0, boss = 0, pinch = 0}
   cache = {enemies = {}, pickups = {}}
   watched = {elite = {}, seen = {}, low = {}}
   hud._spawn_pending, hud._spawn_scheduled, hud._spawn_boss = nil, nil, nil
   hud._arrivals, hud._arrivals_scheduled = nil, nil
   hud._last_incoming, hud._last_bounce, hud._last_boss_attack = nil, nil, nil
+  if access.audio.stop_beacons then access.audio.stop_beacons() end
 end
 hud.reset()
 
@@ -157,6 +166,156 @@ local function nearest_wall(p, a)
 end
 
 
+-- Each beacon's two loops, bright for ahead and dull for behind; the pair is
+-- crossfaded by bearing inside access.audio.beacon.
+local ENEMY_BEACON = {ahead = 'enemy_ahead', behind = 'enemy_behind'}
+local ELITE_BEACON = {ahead = 'elite_ahead', behind = 'elite_behind'}
+local GOLD_BEACON  = {ahead = 'gold_ahead',  behind = 'gold_behind'}
+local ORB_BEACON   = {ahead = 'orb_ahead',   behind = 'orb_behind'}
+
+
+-- The enemy closing from the other side of the snake, if there is one. Being
+-- pinched between two of them is the situation that kills runs.
+local function pinching(nearest)
+  for i = 2, math.min(#cache.enemies, 6) do
+    local other = cache.enemies[i]
+    if other.d < nearest.d * 1.8 and (other.b * nearest.b) < 0 and
+       math.abs(describe.wrap_angle(other.b - nearest.b)) > math.pi / 3 then
+      return other
+    end
+  end
+  return nil
+end
+
+
+local function sonar_enemies(dt, p, a)
+  local nearest = cache.enemies[1]
+
+  if hud.beacons then
+    -- One continuous tone for the nearest enemy. It never stops while there is
+    -- something to track, so turning away from it is something you can hear
+    -- happening rather than something you infer from the next ping.
+    if nearest then
+      access.audio.beacon('enemy', ENEMY_BEACON, nearest.b,
+        remap(nearest.d, 16, 260, 1.75, 0.70),
+        remap(nearest.d, 16, 260, 1.00, 0.40))
+
+      -- Contact keeps its own hard rattle over the top: the beacon says where
+      -- something is, this says that it is on you now.
+      timers.enemy = timers.enemy - dt
+      if nearest.d < 26 and timers.enemy <= 0 then
+        timers.enemy = 0.14
+        access.audio.play('enemy_close', math.sin(nearest.b), 1, 0.9)
+      end
+
+      -- The second enemy keeps its ping rather than getting a beacon of its
+      -- own: one held tone is a thing to steer by, two are a chord.
+      timers.pinch = timers.pinch - dt
+      if timers.pinch <= 0 then
+        local other = pinching(nearest)
+        if other then
+          timers.pinch = 0.5
+          ping_enemy(other, 0.5)
+        end
+      end
+    end
+
+  else
+    timers.enemy = timers.enemy - dt
+    if nearest and timers.enemy <= 0 then
+      timers.enemy = remap(nearest.d, 20, 220, 0.10, 0.70)
+      ping_enemy(nearest, 1)
+      local other = pinching(nearest)
+      if other then ping_enemy(other, 0.55) end
+    end
+  end
+
+  -- The elite gets a voice of its own. It is the one enemy that has to be
+  -- killed to end the round, and the swarm around it hides it completely from
+  -- the nearest-enemy tone.
+  local boss = a.boss
+  if boss and not boss.dead then
+    local d, b = range_and_bearing(p, boss)
+    if hud.beacons then
+      access.audio.beacon('elite', ELITE_BEACON, b,
+        remap(d, 30, 280, 1.35, 0.75),
+        remap(d, 30, 280, 0.95, 0.50))
+    else
+      timers.boss = timers.boss - dt
+      if timers.boss <= 0 then
+        timers.boss = remap(d, 30, 250, 0.45, 1.2)
+        local front = math.cos(b) > 0
+        access.audio.play('boss', math.sin(b), front and remap(d, 20, 250, 1.3, 0.9) or remap(d, 20, 250, 0.85, 0.6), 1)
+      end
+    end
+  end
+end
+
+
+local function sonar_walls(dt, p, a)
+  local ahead = wall_ahead(p, a)
+  if ahead and ahead < 110 then
+    timers.wall = timers.wall - dt
+    if timers.wall <= 0 then
+      timers.wall = remap(ahead, 6, 110, 0.10, 0.55)
+      access.audio.play('wall', 0, remap(ahead, 6, 110, 1.7, 0.85), remap(ahead, 6, 110, 1, 0.35))
+    end
+  else
+    timers.wall = 0
+  end
+
+  -- Running along a wall is safe but disorienting; a quiet pad on the side the
+  -- wall is on keeps the player oriented without nagging.
+  local wall = nearest_wall(p, a)
+  if wall.d < 34 then
+    timers.edge = timers.edge - dt
+    if timers.edge <= 0 then
+      timers.edge = 0.45
+      local b = describe.wrap_angle(wall.r - p.r)
+      access.audio.play('edge', math.sin(b), remap(wall.d, 0, 34, 1.15, 0.9), remap(wall.d, 0, 34, 0.9, 0.3))
+    end
+  else
+    timers.edge = 0
+  end
+end
+
+
+local function sonar_pickups(dt)
+  if hud.beacons then
+    -- Gold and orbs get a beacon each rather than taking turns as the nearest
+    -- one: an orb is worth crossing the arena for and gold is worth a detour,
+    -- and which of the two is momentarily closer says nothing about that.
+    -- The cache is sorted by range, so the first of each kind is its nearest.
+    local gold, orb
+    for _, g in ipairs(cache.pickups) do
+      if g.kind == 'gold' then gold = gold or g else orb = orb or g end
+      if gold and orb then break end
+    end
+    if gold then
+      access.audio.beacon('gold', GOLD_BEACON, gold.b,
+        remap(gold.d, 16, 300, 1.30, 0.80),
+        remap(gold.d, 16, 300, 0.85, 0.30))
+    end
+    if orb then
+      access.audio.beacon('orb', ORB_BEACON, orb.b,
+        remap(orb.d, 16, 300, 1.25, 0.80),
+        remap(orb.d, 16, 300, 0.95, 0.35))
+    end
+
+  else
+    local nearest = cache.pickups[1]
+    if nearest and nearest.d < 170 then
+      timers.pickup = timers.pickup - dt
+      if timers.pickup <= 0 then
+        timers.pickup = remap(nearest.d, 20, 170, 0.45, 0.95)
+        access.audio.play(nearest.kind, math.sin(nearest.b),
+          remap(nearest.d, 16, 170, 1.35, 0.8), 0.8)
+      end
+    end
+  end
+end
+
+
 local function update_sonar(dt)
   local p, a = head()
   if not p then return end
@@ -168,80 +327,9 @@ local function update_sonar(dt)
     cache.pickups = scan_pickups(p, a)
   end
 
-  -- Enemies -------------------------------------------------------------
-  if hud.sonar_enemies then
-    timers.enemy = timers.enemy - dt
-    local nearest = cache.enemies[1]
-    if nearest and timers.enemy <= 0 then
-      timers.enemy = remap(nearest.d, 20, 220, 0.10, 0.70)
-      ping_enemy(nearest, 1)
-      -- If there is also something closing from the opposite side, say so:
-      -- being pinched is the situation that kills runs.
-      for i = 2, math.min(#cache.enemies, 6) do
-        local other = cache.enemies[i]
-        if other.d < nearest.d * 1.8 and (other.b * nearest.b) < 0 and
-           math.abs(describe.wrap_angle(other.b - nearest.b)) > math.pi / 3 then
-          ping_enemy(other, 0.55)
-          break
-        end
-      end
-    end
-
-    -- The elite gets a pulse of its own. It is the one enemy that has to be
-    -- killed to end the round, and the swarm around it hides it completely
-    -- from the nearest-enemy ping.
-    local boss = a.boss
-    if boss and not boss.dead then
-      timers.boss = timers.boss - dt
-      if timers.boss <= 0 then
-        local d, b = range_and_bearing(p, boss)
-        timers.boss = remap(d, 30, 250, 0.45, 1.2)
-        local front = math.cos(b) > 0
-        access.audio.play('boss', math.sin(b), front and remap(d, 20, 250, 1.3, 0.9) or remap(d, 20, 250, 0.85, 0.6), 1)
-      end
-    end
-  end
-
-  -- Walls ---------------------------------------------------------------
-  if hud.sonar_walls then
-    local ahead = wall_ahead(p, a)
-    if ahead and ahead < 110 then
-      timers.wall = timers.wall - dt
-      if timers.wall <= 0 then
-        timers.wall = remap(ahead, 6, 110, 0.10, 0.55)
-        access.audio.play('wall', 0, remap(ahead, 6, 110, 1.7, 0.85), remap(ahead, 6, 110, 1, 0.35))
-      end
-    else
-      timers.wall = 0
-    end
-
-    -- Running along a wall is safe but disorienting; a quiet pad on the side
-    -- the wall is on keeps the player oriented without nagging.
-    local wall = nearest_wall(p, a)
-    if wall.d < 34 then
-      timers.edge = timers.edge - dt
-      if timers.edge <= 0 then
-        timers.edge = 0.45
-        local b = describe.wrap_angle(wall.r - p.r)
-        access.audio.play('edge', math.sin(b), remap(wall.d, 0, 34, 1.15, 0.9), remap(wall.d, 0, 34, 0.9, 0.3))
-      end
-    else
-      timers.edge = 0
-    end
-  end
-
-  -- Pickups -------------------------------------------------------------
-  if hud.sonar_pickups then
-    local nearest = cache.pickups[1]
-    if nearest and nearest.d < 170 then
-      timers.pickup = timers.pickup - dt
-      if timers.pickup <= 0 then
-        timers.pickup = remap(nearest.d, 20, 170, 0.45, 0.95)
-        access.audio.play(nearest.kind, math.sin(nearest.b),
-          remap(nearest.d, 16, 170, 1.35, 0.8), 0.8)
-      end
-    end
-  end
+  if hud.sonar_enemies then sonar_enemies(dt, p, a) end
+  if hud.sonar_walls then sonar_walls(dt, p, a) end
+  if hud.sonar_pickups then sonar_pickups(dt) end
 end
 
 

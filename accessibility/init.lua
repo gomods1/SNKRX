@@ -24,6 +24,7 @@ require(path .. '.describe')
 require(path .. '.guide')
 require(path .. '.ui_nav')
 require(path .. '.arena_hud')
+require(path .. '.sound_lab')
 
 access.enabled = true
 access.speech_enabled = true
@@ -109,6 +110,7 @@ local function load_settings()
   default('access_sonar_enemies', true)
   default('access_sonar_walls', true)
   default('access_sonar_pickups', true)
+  default('access_beacons', true)
 
   access.enabled = state.access_enabled
   access.speech_enabled = state.access_speech
@@ -118,6 +120,7 @@ local function load_settings()
   access.hud.sonar_enemies = state.access_sonar_enemies
   access.hud.sonar_walls = state.access_sonar_walls
   access.hud.sonar_pickups = state.access_sonar_pickups
+  access.hud.beacons = state.access_beacons
 end
 
 
@@ -132,6 +135,7 @@ local function save_settings()
   state.access_sonar_enemies = access.hud.sonar_enemies
   state.access_sonar_walls = access.hud.sonar_walls
   state.access_sonar_pickups = access.hud.sonar_pickups
+  state.access_beacons = access.hud.beacons
   pcall(system.save_state)
 end
 access.save_settings = save_settings
@@ -415,7 +419,7 @@ local function announce_screen(st, previous)
       or 'SNKRX. Accessibility is on. Press F2 to turn it off, F1 for the keys, F5 for the guide. '
   end
   if st.is and st:is(MainMenu) then
-    access.say(prefix .. 'Main menu. Tab to move, enter to choose, F1 for the accessibility keys.',
+    access.say(prefix .. 'Main menu. Tab to move, enter to choose. Learn sounds plays every sound in the game with a description of each. F1 for the accessibility keys.',
       {interrupt = true})
   elseif st.is and st:is(BuyScreen) then
     -- Coming out of a fight, the round's gold breakdown may still be being
@@ -530,10 +534,12 @@ local HELP = {
   'Accessibility keys.',
   'Anywhere: F1 this help. F2 accessibility off or on. F3 speech on or off. F4 cue volume. F5 the game guide. M repeats the last message. Comma and full stop step back and forward through everything that has been said.',
   'Menus and shop: tab and shift tab move, arrow keys also move when no snake is being steered, home and end jump to the first and last control, enter or space chooses, backspace is the secondary action such as selling.',
+  'Main menu: learn sounds opens a list of every sound in the game, with a description of each one and enter to hear it.',
   'Shop only: 1, 2 and 3 buy a card, R rerolls the shop, G starts the round, page up and page down move the selected party member forward or back in the snake, shift backspace sells one spare copy of the selected hero. Q reads the round and gold, H reads the party, Y reads your build.',
   'Arena: A or left arrow turns left, D or right arrow turns right. Q status, W position and heading, T enemies, G loose gold and healing orbs, H every hero\'s health, Y your build. Escape opens the options, where R restarts the run.',
-  'Arena sound: a bright ping is an enemy in front of you, a low dull ping is an enemy behind you, a fast rattle is an enemy about to touch you. A slow heavy pulse is the elite. A buzz is a shot flying at you. A fluttering tone is a headbutter winding up. A sharp tick is a mine. A wooden knock is the wall you are heading into, getting faster as you close in. A soft low pad on one side means you are running along that wall. Bells are gold and healing orbs. A wobbling tone marks a spot where enemies are about to appear.',
-  'Arena toggles: F enemy sonar, V wall sonar, C pickup sonar.',
+  'Arena sound: the nearest enemy, the elite, the nearest gold and the nearest healing orb each sound without stopping for as long as they are there, panned to where they are and rising as they get closer. The enemy and the elite hold a steady tone; gold ticks like a flipped coin and an orb glows with a soft chime, so the two things worth chasing never sound like the two things worth avoiding. Each is bright when the thing is in front of you and dull when it is behind, so turning towards something is heard as it brightening. Turn until it is bright and centred and you are heading straight at it.',
+  'Other arena sounds: a fast rattle is an enemy touching you, a ping to one side is a second enemy closing from the other side, a buzz is a shot flying at you, a fluttering tone is a headbutter winding up, a sharp tick is a mine, a wooden knock is the wall you are heading into and it gets faster as you close in, a soft low pad on one side means you are running along that wall, and a wobbling tone marks a spot where enemies are about to appear.',
+  'Arena toggles: F enemy sonar, V wall sonar, C pickup sonar, B holding tones or separate pings.',
   'Choosing an item: 1 to 4 take a card, R rerolls, tab browses.',
 }
 
@@ -646,6 +652,12 @@ local function handle_hotkeys()
   end
   if pressed('c') then
     access.hud.sonar_pickups = toggle_setting(access.hud.sonar_pickups, 'pickup sonar')
+    return true
+  end
+  if pressed('b') then
+    access.hud.beacons = toggle_setting(access.hud.beacons, 'tracking tones',
+      'on, enemies and pickups hold a tone you can steer by',
+      'off, back to separate pings')
     return true
   end
 
@@ -784,6 +796,9 @@ function access.update(dt)
       access.nav.handle_input()
     end
     access.hud.update(dt)
+    -- Last, so that beacons aimed this frame are heard this frame, and so that
+    -- fades keep running on a screen that has no sonar of its own.
+    access.audio.update(dt)
   end)
 
   if not ok then

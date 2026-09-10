@@ -5,5 +5,9 @@ builds/
 # checkout without a Steam client. Must not ship: it disables achievements.
 luasteam.lua
 
+# ...except the release shim, which is the file that does ship: it loads the real
+# luasteam.dll and only falls back to no-ops when Steam is not there.
+!release/luasteam.lua
+
 # Built output: the compiled game, plus dist/manual.html from build_manual.sh.
 dist/

@@ -60,6 +60,11 @@ guide.BASICS = {
 -- How this game is played without sight.
 guide.MECHANICS = {
   'Playing by ear.',
+  'How things are heard. Four things sound without stopping for as long as they are there: the nearest enemy, the elite, the nearest loose gold and the nearest healing orb. ' ..
+    'The two dangers hold a steady tone. The two pickups are struck instead and repeat, gold ticking like a flipped coin and an orb glowing with a soft chime, so a thing worth chasing never sounds like a thing worth avoiding. ' ..
+    'Each is panned to where that thing is, relative to the way the snake is facing rather than to the screen, so hard left means on your left whichever way you are pointing. ' ..
+    'Each is bright when the thing is in front of you and dull and low when it is behind, and rises and quickens as it gets closer. ' ..
+    'That is what makes something reachable: turn until its sound is bright and in the middle of your head, and you are heading straight at it. Turn until it is dull and you are heading away.',
   'The snake. You steer only the head, and every hero you own follows it in party order. Slot 1 is the head and takes most of the hits, so put a tough hero there. ' ..
     'The snake never stops moving. Hold A or the left arrow to keep turning left, D or the right arrow to keep turning right. ' ..
     'Heroes attack automatically whenever an enemy is in range; you never aim, you only decide where the snake goes.',
@@ -67,20 +72,22 @@ guide.MECHANICS = {
     'Hitting a wall bounces you off it and your new heading is spoken. A dry wooden knock means a wall is straight ahead; it gets faster and higher the closer you are. ' ..
     'A soft low pad on one side means you are running along that wall. W says where you are and which way you face at any time.',
   'Enemies. A wobbling tone and a spoken place mean enemies are about to appear there; they arrive one second later and chase the head of the snake. ' ..
-    'A bright ping is an enemy in front of you, panned to its side; a low dull ping is one behind you. Both get higher and faster as it closes. ' ..
-    'A hard fast rattle means an enemy is about to touch you. Touching an enemy damages the hero it touches, so turn away from the pings and let your heroes shoot. ' ..
+    'The nearest one holds the enemy tone, so keep it dull and behind you and let your heroes shoot it. ' ..
+    'A hard fast rattle over the top of that tone means an enemy is touching you and taking a hero\'s health. ' ..
+    'A single ping to one side while the tone is on the other means a second enemy is closing from there and you are about to be pinched. ' ..
     'A buzz is a shot flying towards you; steer sideways to let it pass.',
   'Special enemies are announced when they arrive. Speed boosters make nearby enemies faster. Exploders leave a mine when they die; a mine is announced with a tick and bursts into a ring of shots a moment later. ' ..
     'Headbutters wind up with a fluttering tone and then charge at you; steer sideways. Tanks are slow and hard to kill. Shooters stop and fire bursts. Spawners burst into critters when killed.',
   'Rounds. A round is a set of waves. Each wave spawns when the previous one dies, and the wave number is spoken. ' ..
-    'Every third round ends with a choice of one item from four. Every sixth round is an elite round: an elite arrives at the centre with a slow heavy pulse of its own, so you can hear where it is under the swarm, and its attacks are announced. ' ..
+    'Every third round ends with a choice of one item from four. Every sixth round is an elite round: an elite arrives at the centre holding a slow, heavy tone of its own, so you can find it under the swarm, and its attacks are announced. ' ..
     'Kill the elite and its escorts to win the round. Round 25 wins the run.',
   'Health and gold. Party health is spoken as it drops past 75, 50, 25 and 10 percent, a hero at low health is named, and each hero lost is named. When the last hero dies the run ends. ' ..
-    'A high bell is loose gold and a lower, longer bell is a healing orb; run over them to collect. Gold picked up is added to the round reward.',
+    'Loose gold ticks like a flipped coin and a healing orb glows with a soft, warm chime; steer until it is bright and centred and run over it. Gold picked up is added to the round reward.',
   'Reports at any time in the arena. Q for the round, wave, enemies left, health and gold. W for where you are and where you are heading. T for where the enemies are. G for gold and orbs. H for every hero\'s health. Y for your whole build.',
   'The shop. Tab moves between the three cards for sale, your party, the class icons, your items and the controls, and the group is announced when you enter it. ' ..
     '1, 2 and 3 buy a card, R rerolls the shop for 2 gold, backspace sells the party member or item you are on, shift backspace sells one spare copy, and page up and page down move a party member forward or back in the snake. ' ..
     'Enter on the shop level buys experience for 5 gold; higher shop levels offer rarer heroes. Lock keeps the same three cards for next round. G starts the round.',
+  'Learning the sounds. The main menu has a learn sounds screen: every sound in the game in a list, each with a description, and enter plays it the way it arrives in the arena. It is the quickest way to get all of this into your ear.',
   'Press F1 at any time for the full key list, and M to hear the last message again.',
 }
 

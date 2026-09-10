@@ -109,14 +109,21 @@ function MainMenu:on_enter(from)
       main:go_to('buy_screen', run.level or 1, run.loop or 0, run.units or {}, passives, run.shop_level or 1, run.shop_xp or 0)
     end, text = Text({{text = '[wavy, ' .. tostring(state.dark_transitions and 'fg' or 'bg') .. ']starting...', font = pixul_font, alignment = 'center'}}, global_text_tags)}
   end}
-  self.options_button = Button{group = self.main_ui, x = 47, y = gh/2 + 12, force_update = true, button_text = 'options', fg_color = 'bg10', bg_color = 'bg', action = function(b)
+  -- The accessibility layer's sound reference. It sits on the main menu because
+  -- that is the one screen a player reaches before anything is trying to kill
+  -- them, and the sounds are what the rest of the game is played by.
+  self.learn_sounds_button = Button{group = self.main_ui, x = 10 + (pixul_font:get_text_width('learn sounds') + 8)/2, y = gh/2 + 12,
+    force_update = true, button_text = 'learn sounds', fg_color = 'bg10', bg_color = 'bg', action = function(b)
+    access.sound_lab.open(self)
+  end}
+  self.options_button = Button{group = self.main_ui, x = 47, y = gh/2 + 34, force_update = true, button_text = 'options', fg_color = 'bg10', bg_color = 'bg', action = function(b)
     if not self.paused then
       open_options(self)
     else
       close_options(self)
     end
   end}
-  self.quit_button = Button{group = self.main_ui, x = 37, y = gh/2 + 34, force_update = true, button_text = 'quit', fg_color = 'bg10', bg_color = 'bg', action = function(b)
+  self.quit_button = Button{group = self.main_ui, x = 37, y = gh/2 + 56, force_update = true, button_text = 'quit', fg_color = 'bg10', bg_color = 'bg', action = function(b)
     system.save_state()
     steam.shutdown()
     love.event.quit()
@@ -140,6 +147,7 @@ end
 
 
 function MainMenu:on_exit()
+  access.sound_lab.close(self)
   self.floor:destroy()
   self.main:destroy()
   self.post_main:destroy()
@@ -165,6 +173,18 @@ end
 function MainMenu:update(dt)
   if main_song_instance:isStopped() then
     main_song_instance = _G[random:table{'song1', 'song2', 'song3', 'song4', 'song5'}]:play{volume = 0.5}
+  end
+
+  -- The sound reference needs the menu quiet: the demo snake fighting in the
+  -- background is exactly the noise it exists to be heard over. Freezing
+  -- everything but its own group is what buys that silence, and it stops the
+  -- menu buttons underneath from taking clicks meant for the list.
+  if self.in_sound_lab then
+    if input.escape.pressed then access.sound_lab.close(self) end
+    access.sound_lab.update(self, dt)
+    self:update_game_object(dt*slow_amount)
+    if self.sound_lab then self.sound_lab:update(dt*slow_amount) end
+    return
   end
 
   if input.escape.pressed then
@@ -210,4 +230,11 @@ function MainMenu:draw()
   self.title_text:draw(60, gh/2 - 40)
   if self.paused then graphics.rectangle(gw/2, gh/2, 2*gw, 2*gh, nil, nil, modal_transparent) end
   self.ui:draw()
+  if self.in_sound_lab then
+    -- Nearly opaque: the list has to be readable, and the menu showing through
+    -- it turns a column of names into a mess.
+    graphics.rectangle(gw/2, gh/2, 2*gw, 2*gh, nil, nil, modal_transparent_2)
+    graphics.rectangle(gw/2, gh/2, 2*gw, 2*gh, nil, nil, modal_transparent_2)
+    access.sound_lab.draw(self)
+  end
 end

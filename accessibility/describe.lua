@@ -326,6 +326,11 @@ local LINK_BUTTONS = {
 function describe.focusable(o)
   if not o then return nil end
 
+  -- A widget built by the accessibility layer itself already knows exactly what
+  -- it wants said about it, and nothing here could improve on that.
+  if o.a11y_label then return o.a11y_label, o.a11y_detail end
+
+
   if is(o, 'ShopCard') then
     local cost = o.cost or (character_tiers and character_tiers[o.unit]) or '?'
     local label = describe.character(o.unit) .. ', ' .. cost .. ' gold'

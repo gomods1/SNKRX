@@ -24,6 +24,7 @@ nav.focus = nil
 local signature = nil
 local pending = nil          -- {button = 'm1'|'m2', frames = n}
 local release_next = nil     -- button to release on the following frame
+local clicked = nil          -- the widget the last synthetic click landed on
 local last_screen = nil
 
 
@@ -87,6 +88,8 @@ end
 -- itself. Focus is kept separately per situation.
 local function collect_groups(st)
   if st.in_tutorial and st.tutorial then return {st.tutorial}, 'tutorial' end
+  -- The accessibility layer's own screen: it freezes everything behind it.
+  if st.in_sound_lab and st.sound_lab then return {st.sound_lab}, 'sound_lab' end
   -- The credits sit in a group of their own and freeze every other button.
   if st.in_credits and st.credits then return {st.credits}, 'credits' end
   -- While a modal is up the screen behind it is inert, so only offer the modal.
@@ -130,7 +133,12 @@ function nav.collect()
   end
   for _, o in ipairs(items) do
     o.a11y_region, o.a11y_region_name = region_of(st, o)
-    if o.card_i then
+    if o.a11y_order then
+      -- A screen that lays itself out in columns states its own reading order
+      -- rather than leaving it to be guessed from pixel positions.
+      o.a11y_region = -2
+      o.a11y_row, o.a11y_col = o.a11y_order, 0
+    elseif o.card_i then
       -- On the item-choice screen the four cards are the point; the build
       -- list beside them is reference material and comes after.
       o.a11y_region = -1
@@ -309,11 +317,27 @@ local function service_click()
     return
   end
   o.selected = true
+  clicked = o
   local button = pending.button
   input[button].pressed = true
   input[button].down = true
   release_next = button
   pending = nil
+end
+
+
+-- Forcing `selected` on is what makes the click land, but the engine only ever
+-- clears that flag from a mouse-exit, and a widget that was never really
+-- hovered never gets one. Left alone it stays lit for the rest of the screen's
+-- life, which on a list you activate repeatedly means everything you have
+-- pressed glows at once. Clear it once focus has moved on and the real pointer
+-- is not on it either, so a mouse user is still never fought over.
+local function clear_stale_highlight()
+  if not clicked then return end
+  if clicked == nav.focus then return end
+  if not clicked.dead and clicked.colliding_with_mouse then return end
+  if not clicked.dead and clicked.on_mouse_exit then pcall(clicked.on_mouse_exit, clicked) end
+  clicked = nil
 end
 
 
@@ -327,7 +351,7 @@ function nav.update(dt)
   if st ~= last_screen then
     last_screen = st
     nav.items, nav.index, nav.focus, signature = {}, 0, nil, nil
-    pending, release_next, spoken_region = nil, nil, nil
+    pending, release_next, clicked, spoken_region = nil, nil, nil, nil
     last_context, saved_focus = nil, {}
   end
 
@@ -383,6 +407,7 @@ function nav.update(dt)
   end
 
   service_click()
+  clear_stale_highlight()
 end
 
 

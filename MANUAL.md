@@ -49,6 +49,24 @@ you own and where the next bonus is.
 
 # Playing by ear
 
+## How things are heard
+
+Four things hold a tone of their own for as long as they are there: the nearest
+enemy, the elite, the nearest loose gold and the nearest healing orb.
+
+Each tone is panned to where that thing is, relative to the way the snake is
+facing rather than to the screen, so hard left means on your left whichever way
+you are pointing. A tone is bright when the thing is in front of you and dull
+and low when it is behind, and it rises and pulses faster as it gets closer.
+
+That is what makes something reachable rather than merely noticeable: turn until
+its tone is bright and in the middle of your head, and you are heading straight
+at it. Turn until it is dull and low and you are heading away.
+
+The main menu's **learn sounds** screen plays each of these on demand, sweeping
+past you from one side to the other, which is the quickest way to get them into
+your ear.
+
 ## The snake
 
 You steer only the head, and every hero you own follows it in party order. Slot
@@ -75,11 +93,12 @@ says where you are and which way you face at any time.
 A wobbling tone and a spoken place mean enemies are about to appear there; they
 arrive one second later and chase the head of the snake.
 
-A bright ping is an enemy in front of you, panned to its side; a low dull ping
-is one behind you. Both get higher and faster as it closes. A hard fast rattle
-means an enemy is about to touch you. Touching an enemy damages the hero it
-touches, so turn away from the pings and let your heroes shoot. A buzz is a shot
-flying towards you; steer sideways to let it pass.
+The nearest one holds the enemy tone, so keep it dull and behind you and let
+your heroes shoot it. A hard fast rattle over the top of that tone means an
+enemy is touching you and taking a hero's health. A single ping to one side
+while the tone is on the other means a second enemy is closing from there and
+you are about to be pinched. A buzz is a shot flying towards you; steer sideways
+to let it pass.
 
 ## Special enemies
 
@@ -100,9 +119,9 @@ A round is a set of waves. Each wave spawns when the previous one dies, and the
 wave number is spoken.
 
 Every third round ends with a choice of one item from four. Every sixth round is
-an elite round: an elite arrives at the centre with a slow heavy pulse of its
-own, so you can hear where it is under the swarm, and its attacks are announced.
-Kill the elite and its escorts to win the round. Round 25 wins the run.
+an elite round: an elite arrives at the centre holding a slow, heavy tone of its
+own, so you can find it under the swarm, and its attacks are announced. Kill the
+elite and its escorts to win the round. Round 25 wins the run.
 
 ## Health and gold
 
@@ -110,8 +129,11 @@ Party health is spoken as it drops past 75, 50, 25 and 10 percent, a hero at low
 health is named, and each hero lost is named. When the last hero dies the run
 ends.
 
-A high bell is loose gold and a lower, longer bell is a healing orb; run over
-them to collect. Gold picked up is added to the round reward.
+Loose gold ticks like a flipped coin and a healing orb glows with a soft, warm chime.
+Both are struck sounds that repeat, where the enemy and elite tones are held and
+never stop, so the things worth chasing never sound like the things worth
+avoiding. Steer until the ticking or the tolling is bright and centred and run
+over it. Gold picked up is added to the round reward.
 
 ## Reports at any time in the arena
 
@@ -137,6 +159,12 @@ forward or back in the snake.
 **Enter** on the shop level buys experience for 5 gold; higher shop levels offer
 rarer heroes. **Lock** keeps the same three cards for next round. **G** starts
 the round.
+
+## Learning the sounds
+
+The main menu has a **learn sounds** screen: every sound in the game in a list,
+each with a description, and Enter plays it the way it arrives in the arena. It
+is the quickest way to get all of this into your ear.
 
 Press **F1** at any time for the full key list, and **M** to hear the last
 message again.
@@ -191,6 +219,7 @@ The guide points at F1 for the keys; in a written manual, here they are.
 | `F` | Enemy sonar on / off |
 | `V` | Wall sonar on / off |
 | `C` | Pickup sonar on / off |
+| `B` | Tracking tones, or the older separate pings |
 
 ## Choosing an item
 
@@ -203,22 +232,33 @@ descriptions.
 Everything is panned relative to the direction the snake is *facing*, not to the
 screen: hard left means "on your left", whichever way you are pointing.
 
+Four things hold a tone for as long as they are there, panned to where they are,
+bright in front of you and dull behind, rising and pulsing faster as they close:
+
+| Tone | Is |
+| --- | --- |
+| Bright pulsing tone | The nearest **enemy**. |
+| Slow, heavy tone | The **elite** of an elite round, wherever it is under the swarm. |
+| Ticking coin | The nearest loose **gold**. |
+| Soft, warm chime | The nearest **healing orb**. |
+
+Everything else happens once:
+
 | Sound | Means |
 | --- | --- |
-| Bright, short ping | An enemy **in front of you**. Higher and faster the closer it is. |
-| Low, dull ping | An enemy **behind you**. |
-| Fast, hard rattle | An enemy within touching distance — you are about to take damage. |
-| Slow, heavy pulse | The **elite** of an elite round, wherever it is under the swarm. |
+| Fast, hard rattle | An enemy within touching distance — you are taking damage. |
+| Single ping to one side | A second enemy closing from the opposite side to the one you are tracking. |
 | Buzz | A shot flying towards you. |
 | Fluttering tone | A headbutter winding up to charge at you. |
 | Sharp high tick | A mine, about to burst into a ring of shots. |
 | Dry wooden knock | The wall you are heading into, faster and higher as you close in. |
 | Soft low pad on one side | You are running along a wall on that side. |
-| High bell | Loose gold. |
-| Lower, longer bell | A healing orb. |
 | Wobbling tone | A spot where enemies are about to appear, panned to where. |
 | Descending tone | One of your heroes just died. |
 
 Distances are given in **steps** of 16 pixels — the arena is 24 steps across and
 13 down, and the snake covers about five steps a second. Bearings are given on a
 clock face: 12 is straight ahead, 3 is your right, 6 is behind you.
+
+The **learn sounds** screen on the main menu plays every one of these on demand,
+with a description of each, so none of this has to be learned during a fight.
