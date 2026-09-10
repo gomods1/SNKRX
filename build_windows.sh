@@ -1,9 +1,9 @@
 #!/bin/bash
 #
-# Builds a standalone Windows copy of the game into dist/, next to the manual
+# Builds a standalone Windows copy of the game into dist/, next to the manuals
 # that build_manual.sh writes there. The result is a folder a player can be
 # handed as-is: SNKRX.exe, the LOVE runtime beside it, lib/ for the speech
-# library, and manual.html.
+# library, and manual.html with a manual.es.html beside it.
 #
 # This is the direct-download build, not the Steam one. engine/love/*.bat are
 # the upstream scripts for that: they need 7-Zip at a fixed path, hardcode the
@@ -47,7 +47,7 @@ rm -rf "$src/$runtime"
 cp arena.lua buy_screen.lua enemies.lua localization.lua localized_tables.lua \
    main.lua mainmenu.lua media.lua objects.lua player.lua shared.lua \
    tutorial.lua "$src/"
-cp LICENSE README.md MANUAL.md ACCESSIBILITY.md "$src/"
+cp LICENSE README.md MANUAL.md MANUAL.es.md ACCESSIBILITY.md "$src/"
 
 # The shim that keeps a Steam-less launch alive, in place of the dev stub of the
 # same name at the repo root. See release/luasteam.lua for what it does.

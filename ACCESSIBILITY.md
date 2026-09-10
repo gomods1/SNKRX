@@ -21,8 +21,9 @@ it arrives in the arena. **tutorial runs** does the same job for the enemies:
 one short fight per enemy type, each one explained before you meet it.
 
 The same guide is written out in [`MANUAL.md`](MANUAL.md), for reading rather
-than hearing. `./build_manual.sh` runs it through pandoc into
-`dist/manual.html`, a single self-contained page that ships beside the game.
+than hearing, and in Spanish in [`MANUAL.es.md`](MANUAL.es.md).
+`./build_manual.sh` runs both through pandoc into `dist/manual.html` and
+`dist/manual.es.html`, self-contained pages that ship beside the game.
 
 ## Requirements
 

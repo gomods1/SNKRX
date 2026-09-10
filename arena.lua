@@ -30,7 +30,7 @@ function Arena:on_enter(from, level, loop, units, passives, shop_level, shop_xp,
   trigger:tween(2, main_song_instance, {volume = 0.5, pitch = 1}, math.linear)
 
   steam.friends.setRichPresence('steam_display', '#StatusFull')
-  steam.friends.setRichPresence('text', self.lesson and ('Tutorial - ' .. self.lesson.name) or ('Arena - Level ' .. self.level))
+  steam.friends.setRichPresence('text', self.lesson and ('Tutorial - ' .. tutorial.name(self.lesson)) or ('Arena - Level ' .. self.level))
 
   self.floor = Group()
   self.main = Group():set_as_physics_world(32, 0, 0, {'player', 'enemy', 'projectile', 'enemy_projectile', 'force_field', 'ghost'})
@@ -797,7 +797,7 @@ function Arena:draw()
 
   if self.lesson then
     graphics.push(self.x1 + 60, self.y1 - 10, 0, self.hfx.condition2.x, self.hfx.condition2.x)
-      graphics.print_centered('tutorial: ' .. self.lesson.name, fat_font, self.x1 + 60, self.y1 - 10, 0, 0.6, 0.6, nil, nil, fg[0])
+      graphics.print_centered('tutorial: ' .. tutorial.name(self.lesson), fat_font, self.x1 + 60, self.y1 - 10, 0, 0.6, 0.6, nil, nil, fg[0])
     graphics.pop()
     if self.start_time <= 0 then
       graphics.push(self.x2 - 50, self.y1 - 10, 0, self.hfx.condition2.x, self.hfx.condition2.x)

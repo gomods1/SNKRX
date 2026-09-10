@@ -46,6 +46,11 @@ Counted things come in pairs, `<key>.one` and `<key>.many`, and are read with
 5. Check the options rows still fit. They lay themselves out from the width of
    their own labels (`options_row` in `main.lua`) and close their gaps up when
    crowded, but 480 pixels is 480 pixels.
+6. Translate the manual. `../MANUAL.md` is the spoken guide written down, so it
+   copies its wording from the `a11y.guide.*` keys; a `MANUAL.<code>.md` beside
+   it should copy that language's wording the same way rather than translate
+   the English afresh. Add it to the list at the top of `../build_manual.sh`,
+   and to the `cp` line in `../build_windows.sh` that ships the markdown.
 
 ## What is not here
 

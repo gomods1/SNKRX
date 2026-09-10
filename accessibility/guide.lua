@@ -11,7 +11,8 @@
 -- from anywhere.
 --
 -- MANUAL.md is the same text written down, for players who would rather read
--- it; when the text below changes, change it there too.
+-- it, and MANUAL.es.md is its Spanish twin; when the text below changes,
+-- change it in both.
 
 local guide = {}
 access.guide = guide

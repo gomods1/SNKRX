@@ -1,9 +1,10 @@
 #!/bin/bash
 #
-# Builds dist/manual.html from MANUAL.md — the written copy of the guide that
-# F5 reads aloud in game. dist/ is where the compiled game goes, so the manual
-# ships next to it and opens offline in any browser: one self-contained file,
-# no stylesheet or font to fetch.
+# Builds dist/manual.html and dist/manual.es.html from MANUAL.md and
+# MANUAL.es.md — the written copy of the guide that F5 reads aloud in game, one
+# per language the game is translated into. dist/ is where the compiled game
+# goes, so the manuals ship next to it and open offline in any browser: one
+# self-contained file each, no stylesheet or font to fetch.
 #
 # Needs pandoc on PATH (https://pandoc.org).
 
@@ -18,16 +19,31 @@ fi
 
 mkdir -p dist
 
-pandoc MANUAL.md \
-  --from=markdown \
-  --to=html5 \
-  --standalone \
-  --embed-resources \
-  --css=manual.css \
-  --metadata=pagetitle:"SNKRX — Playing by ear" \
-  --table-of-contents \
-  --toc-depth=2 \
-  --section-divs \
-  --output=dist/manual.html
+# source | built page | the browser tab's title, in that manual's own language
+manuals=(
+  "MANUAL.md|manual.html|SNKRX — Playing by ear"
+  "MANUAL.es.md|manual.es.html|SNKRX — Jugar de oído"
+)
 
-echo "built dist/manual.html"
+for manual in "${manuals[@]}"; do
+  IFS='|' read -r src out pagetitle <<< "$manual"
+
+  pandoc "$src" \
+    --from=markdown \
+    --to=html5 \
+    --standalone \
+    --embed-resources \
+    --css=manual.css \
+    --metadata=pagetitle:"$pagetitle" \
+    --table-of-contents \
+    --toc-depth=2 \
+    --section-divs \
+    --output="dist/$out"
+
+  # Each manual opens with a link to the other language, written as the
+  # markdown file it sits beside in the repository. In dist/ what it sits
+  # beside is the built page, so the link has to point at that instead.
+  sed -i 's|href="MANUAL\.md"|href="manual.html"|g; s|href="MANUAL\.es\.md"|href="manual.es.html"|g' "dist/$out"
+
+  echo "built dist/$out"
+done

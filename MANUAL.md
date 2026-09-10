@@ -4,6 +4,8 @@ subtitle: The in-game guide, in writing
 lang: en
 ---
 
+*Este manual también está [en español](MANUAL.es.md).*
+
 This is the guide that **F5** reads aloud inside the game, written down. Nothing
 here is extra: it is the same text, in the same order, with the two diagrams
 from the game's own guide screen described in words. If you would rather hear
