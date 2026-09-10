@@ -709,7 +709,7 @@ end
 
 function hud.on_die(a)
   access.say('You died on round ' .. tostring(a.level) ..
-    '. Tab reviews your build, R restarts the run, escape opens the menu.', {interrupt = true, priority = true})
+    '. Tab moves on to the party and the items you finished with, R restarts the run, escape opens the menu.', {interrupt = true, priority = true})
 end
 
 

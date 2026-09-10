@@ -170,7 +170,7 @@ local function describe_shop(st)
   table.insert(parts, 'shop level ' .. tostring(st.shop_level))
   if st.locked then table.insert(parts, 'shop locked') end
   local summary = table.concat(parts, ', ') .. '. ' .. describe_cards(st)
-  summary = summary .. ' Press 1, 2 or 3 to buy, tab to browse, R to reroll, G to start the round.'
+  summary = summary .. ' Press 1, 2 or 3 to buy, tab and the arrow keys browse, R rerolls, G starts the round.'
   if #(st.units or {}) == 0 then
     summary = summary .. ' Your party is empty, so buy a hero first. F5 opens the guide.'
   end
@@ -194,7 +194,7 @@ local function announce_passive_choice(st, prefix)
     end
   end
   access.say((prefix or '') .. 'Choose one item. ' .. table.concat(names, '. ') ..
-    '. Press 1 to ' .. math.max(n, 1) .. ' to take one, tab to hear what each does. R rerolls, ' .. cost .. '.',
+    '. Press 1 to ' .. math.max(n, 1) .. ' to take one, the arrow keys hear what each does, tab moves on to the reroll and your build. R rerolls, ' .. cost .. '.',
     {interrupt = true, priority = true})
 end
 
@@ -419,7 +419,7 @@ local function announce_screen(st, previous)
       or 'SNKRX. Accessibility is on. Press F2 to turn it off, F1 for the keys, F5 for the guide. '
   end
   if st.is and st:is(MainMenu) then
-    access.say(prefix .. 'Main menu. Tab to move, enter to choose. Learn sounds plays every sound in the game with a description of each. F1 for the accessibility keys.',
+    access.say(prefix .. 'Main menu. Tab moves between groups, the arrow keys move within one, enter chooses. Learn sounds plays every sound in the game with a description of each. F1 for the accessibility keys.',
       {interrupt = true})
   elseif st.is and st:is(BuyScreen) then
     -- Coming out of a fight, the round's gold breakdown may still be being
@@ -475,7 +475,7 @@ local function watch_screen()
   if paused ~= watched_paused then
     watched_paused = paused
     if paused then
-      access.say('Options. Tab to move, enter to change, backspace to change the other way. F1 for the accessibility keys.',
+      access.say('Options. Tab and shift tab move between groups of settings, the arrow keys move within a group, enter changes a setting and backspace changes it the other way. F1 for the accessibility keys.',
         {interrupt = true})
     else
       access.say('resumed', {interrupt = true})
@@ -502,7 +502,7 @@ local function watch_screen()
   if credits ~= watched_credits then
     watched_credits = credits
     if credits then
-      access.say('Credits. Tab to browse the links, escape to close.', {interrupt = true})
+      access.say('Credits. Tab moves between groups of links, the arrow keys move within a group, escape closes.', {interrupt = true})
     else
       access.say('credits closed', {interrupt = true})
     end
@@ -520,8 +520,9 @@ local function watch_screen()
     elseif modal == 'won' then
       local ng = current_new_game_plus or 0
       access.say('Congratulations, you beat the game. Round ' .. tostring(st.level) .. ' cleared. ' ..
-        'New game plus ' .. ng .. ' is unlocked. Tab to browse: loop continues this run at higher difficulty ' ..
-        'with a bigger party, new game plus starts a fresh harder run, and the credits. R restarts from round 1.',
+        'New game plus ' .. ng .. ' is unlocked. The arrow keys browse what to do next: loop continues this run ' ..
+        'at higher difficulty with a bigger party, new game plus starts a fresh harder run, and the credits. ' ..
+        'Tab moves on to the links and to the build you finished with. R restarts from round 1.',
         {interrupt = false, priority = true})
     end
   end
@@ -533,14 +534,14 @@ end
 local HELP = {
   'Accessibility keys.',
   'Anywhere: F1 this help. F2 accessibility off or on. F3 speech on or off. F4 cue volume. F5 the game guide. M repeats the last message. Comma and full stop step back and forward through everything that has been said.',
-  'Menus and shop: tab and shift tab move, arrow keys also move when no snake is being steered, home and end jump to the first and last control, enter or space chooses, backspace is the secondary action such as selling.',
+  'Menus and shop: controls are gathered into groups, and the group is named as you enter it. Tab and shift tab move to the next and previous group, and the arrow keys move within the group you are in, wrapping round at its ends. Home and end jump to the first and last control on the screen, enter or space chooses, and backspace is the secondary action such as selling. Where the arrow keys are steering the snake, tab moves one control at a time instead.',
   'Main menu: learn sounds opens a list of every sound in the game, with a description of each one and enter to hear it.',
   'Shop only: 1, 2 and 3 buy a card, R rerolls the shop, G starts the round, page up and page down move the selected party member forward or back in the snake, shift backspace sells one spare copy of the selected hero. Q reads the round and gold, H reads the party, Y reads your build.',
   'Arena: A or left arrow turns left, D or right arrow turns right. Q status, W position and heading, T enemies, G loose gold and healing orbs, H every hero\'s health, Y your build. Escape opens the options, where R restarts the run.',
   'Arena sound: the nearest enemy, the elite, the nearest gold and the nearest healing orb each sound without stopping for as long as they are there, panned to where they are and rising as they get closer. The enemy and the elite hold a steady tone; gold ticks like a flipped coin and an orb glows with a soft chime, so the two things worth chasing never sound like the two things worth avoiding. Each is bright when the thing is in front of you and dull when it is behind, so turning towards something is heard as it brightening. Turn until it is bright and centred and you are heading straight at it.',
   'Other arena sounds: a fast rattle is an enemy touching you, a ping to one side is a second enemy closing from the other side, a buzz is a shot flying at you, a fluttering tone is a headbutter winding up, a sharp tick is a mine, a wooden knock is the wall you are heading into and it gets faster as you close in, a soft low pad on one side means you are running along that wall, and a wobbling tone marks a spot where enemies are about to appear.',
   'Arena toggles: F enemy sonar, V wall sonar, C pickup sonar, B holding tones or separate pings.',
-  'Choosing an item: 1 to 4 take a card, R rerolls, tab browses.',
+  'Choosing an item: 1 to 4 take a card, R rerolls, the arrow keys read the four cards and tab moves on to the reroll and to your build.',
 }
 
 function access.help()

@@ -320,6 +320,17 @@ local LINK_BUTTONS = {
 }
 
 
+-- The same question the keyboard asks when it groups a screen: links gather at
+-- the end of the menu and the victory screen rather than sitting among the
+-- buttons that do something to the game.
+function describe.is_link(o)
+  if not o then return false end
+  if o.credits_button then return true end
+  if o.button_text and LINK_BUTTONS[o.button_text] then return true end
+  return is(o, 'SteamFollowButton') or is(o, 'WishlistButton') or false
+end
+
+
 -- Returns label, detail. The label is spoken first and interrupts whatever was
 -- being said; the detail is queued behind it and is skipped if the player
 -- keeps moving.
@@ -449,7 +460,7 @@ function describe.focusable(o)
 
   if is(o, 'Button') then
     local label = describe.speech(o.button_text or 'button')
-    if o.credits_button or LINK_BUTTONS[o.button_text] then label = label .. ', opens a browser' end
+    if describe.is_link(o) then label = label .. ', opens a browser' end
     return label
   end
 

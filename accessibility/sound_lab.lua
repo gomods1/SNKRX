@@ -286,7 +286,7 @@ function lab.open(st)
   Text2{group = st.sound_lab, x = gw/2, y = 22,
     lines = {{text = '[fg]learn sounds', font = fat_font, alignment = 'center'}}}
   Text2{group = st.sound_lab, x = gw/2, y = 44,
-    lines = {{text = '[bg10]arrow keys or tab to browse, enter to play, escape to go back',
+    lines = {{text = '[bg10]arrow keys to browse, enter to play, tab for the back button',
       font = pixul_font, alignment = 'center'}}}
 
   local rows = math.ceil(#SOUNDS / #COLUMN_LEFT)
@@ -297,9 +297,12 @@ function lab.open(st)
     local b = Button{group = st.sound_lab, x = COLUMN_LEFT[column] + width/2, y = ROW_TOP + (row - 1) * ROW_STEP,
       force_update = true, button_text = entry.name, fg_color = 'bg10', bg_color = 'bg',
       action = function() play(entry) end}
-    -- Tab order is stated outright: read down the first column and then down the
+    -- Reading order is stated outright: down the first column and then down the
     -- second, rather than zigzagging between them the way screen rows would.
+    -- The whole list is one group, so the arrow keys walk it and Tab is left to
+    -- reach the one control that is not a sound.
     b.a11y_order = i
+    b.a11y_group = 'sounds'
     b.a11y_label = entry.name
     b.a11y_detail = entry.detail
   end
@@ -307,10 +310,12 @@ function lab.open(st)
   local back = Button{group = st.sound_lab, x = gw/2, y = BACK_Y, force_update = true,
     button_text = 'back (esc)', fg_color = 'bg10', bg_color = 'bg', action = function() lab.close(st) end}
   back.a11y_order = #SOUNDS + 1
+  back.a11y_group = 'controls'
   back.a11y_label = 'back to the main menu'
 
   access.say('Learn sounds. ' .. #SOUNDS .. ' sounds, each one the way it is heard in the arena. ' ..
-    'Tab or the arrow keys browse, enter plays the one you are on, escape goes back.',
+    'The arrow keys move through the list, enter plays the one you are on, tab reaches the back button, ' ..
+    'and escape goes back.',
     {interrupt = true, priority = true})
 end
 

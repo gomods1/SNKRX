@@ -84,7 +84,10 @@ guide.MECHANICS = {
   'Health and gold. Party health is spoken as it drops past 75, 50, 25 and 10 percent, a hero at low health is named, and each hero lost is named. When the last hero dies the run ends. ' ..
     'Loose gold ticks like a flipped coin and a healing orb glows with a soft, warm chime; steer until it is bright and centred and run over it. Gold picked up is added to the round reward.',
   'Reports at any time in the arena. Q for the round, wave, enemies left, health and gold. W for where you are and where you are heading. T for where the enemies are. G for gold and orbs. H for every hero\'s health. Y for your whole build.',
-  'The shop. Tab moves between the three cards for sale, your party, the class icons, your items and the controls, and the group is announced when you enter it. ' ..
+  'The shop. Its controls are gathered into groups: the three cards for sale, your party, the class icons, your items, the shop controls and the go button. ' ..
+    'Tab and shift tab move to the next and previous group and name it as you arrive, and the arrow keys move within the group you are in, ' ..
+    'saying where you are in it and wrapping round at its ends. Home and end jump to the first and last control on the screen. ' ..
+    'Every other menu in the game is grouped the same way. ' ..
     '1, 2 and 3 buy a card, R rerolls the shop for 2 gold, backspace sells the party member or item you are on, shift backspace sells one spare copy, and page up and page down move a party member forward or back in the snake. ' ..
     'Enter on the shop level buys experience for 5 gold; higher shop levels offer rarer heroes. Lock keeps the same three cards for next round. G starts the round.',
   'Learning the sounds. The main menu has a learn sounds screen: every sound in the game in a list, each with a description, and enter plays it the way it arrives in the arena. It is the quickest way to get all of this into your ear.',
@@ -120,7 +123,7 @@ function guide.speak(st)
     for _, s in ipairs(guide.BASICS) do add(s) end
   end
   for _, s in ipairs(guide.MECHANICS) do add(s) end
-  if st and st.in_tutorial then add('Tab reads the example tiles. Escape closes the guide.') end
+  if st and st.in_tutorial then add('Tab moves between the two example diagrams and the close button, and the arrow keys read the tiles of the one you are on. Escape closes the guide.') end
 
   access.say(parts[1], {interrupt = true, priority = true})
   for i = 2, #parts do access.say(parts[i], {interrupt = false, priority = true}) end

@@ -58,19 +58,47 @@ speech is silent, and a note explaining why is printed to the console.
 
 | Key | Does |
 | --- | --- |
-| `Tab` / `Shift+Tab` | Next / previous control |
-| Arrow keys | Same as Tab, when no snake is being steered |
-| `Home` / `End` | First / last control |
+| `Tab` / `Shift+Tab` | Next / previous group, landing on its first control |
+| Arrow keys | Previous / next control within the group, wrapping at its ends |
+| `Home` / `End` | First / last control on the whole screen |
 | `Enter` or `Space` | Activate |
 | `Backspace` or `Delete` | Secondary action — sell a hero or item, step a setting backwards |
 
-Each control announces itself, then its full description. Skipping on with Tab
-cuts the description off, so browsing fast stays fast. Opening the guide, the
-options or a card screen never moves your focus: when you come back, you are
-where you left off.
+Each control announces itself, then its full description. Skipping on cuts the
+description off, so browsing fast stays fast. Opening the guide, the options or a
+card screen never moves your focus: when you come back, you are where you left
+off.
 
-The shop is grouped into regions — shop cards, party, classes, items, shop
-controls, start — and the region is announced when you cross into a new one.
+#### Groups
+
+Every screen gathers its controls into groups, and the two keys divide the work
+between them: **Tab** and **Shift+Tab** move between groups, the **arrow keys**
+move within one. The group is named as you arrive, the way a screen reader
+announces a landmark, and each control says where it sits in its group — "video.
+window size minus, 1 of 4". Coming back round to the top of a group names it
+again, so a list repeating itself is never mistaken for the screen repeating
+itself.
+
+| Screen | Groups, in Tab order |
+| --- | --- |
+| Main menu | menu, links |
+| Options | accessibility, this run (or back, from the menu), volume, game, video, effects, new game plus, leaving |
+| Shop | shop cards, party, classes, items, shop controls, start |
+| The guide | levelling example, class example, close |
+| Choosing an item | items on offer, controls, your party, your items |
+| Death screen | what next, your party, your items |
+| Victory screen | what next, links, your party, your items |
+| Credits | people, libraries, music, sound, playtesters, close |
+| Learn sounds | sounds, controls |
+
+A group with nothing in it is not there to be tabbed into: before you own an
+item, the shop has no items group. Anything a screen puts on the keyboard that
+none of its groups claims is gathered into a last group called **other**, so a
+control can never become unreachable by being forgotten.
+
+The arrow keys steer the snake in the arena, so they do not move focus there. On
+that one screen Tab falls back to moving one control at a time, which is also
+what it does on a screen with only one group.
 
 ### Shop only
 
@@ -110,8 +138,9 @@ and how far it is from its next level.
 ### Choosing an item
 
 The four items are read out by number as soon as the screen opens. `1` to `4`
-take one, `R` rerolls (and the new four are read out), `Tab` browses the full
-descriptions.
+take one, `R` rerolls (and the new four are read out), the arrow keys browse the
+four full descriptions, and `Tab` moves on to the reroll and to the party and
+items you already have.
 
 ## Learning the sounds
 
@@ -238,10 +267,18 @@ highlight and hover behaviour keeps working without the widgets knowing anything
 about keyboards. The pointer only moves once you press a navigation key, so
 mouse users are never fought over. Selling a spare copy is the one action done
 directly rather than through a click, because the spare-copy tiles are skipped
-by Tab. A widget can set `a11y_label`, `a11y_detail` and `a11y_order` to state
-outright what it is called and where it comes in the reading order; the learn
-sounds list is built that way, because its two columns would otherwise be read
-across rather than down.
+by Tab. A widget can set `a11y_label`, `a11y_detail`, `a11y_order` and
+`a11y_group` to state outright what it is called, where it comes in the reading
+order and which group it belongs to; the learn sounds list is built that way,
+because its two columns would otherwise be read across rather than down.
+
+Grouping lives in one table per screen in `ui_nav.lua`, each a list of groups in
+the order Tab visits them, and the first group whose match accepts a widget
+claims it. Matching is by class (`ShopCard`, `CharacterPart`) where a screen is
+built from its own widget types, and by the state's own field names
+(`sfx_button`, `video_button_1`) where it is a row of otherwise identical
+buttons, so rewording a button cannot quietly move it. Whatever no group claims
+falls into a final `other` group rather than off the end of the keyboard.
 
 Two kinds of sound come out of `audio.lua`. One-shot **cues** have their stereo
 balance baked into the sample data, one copy per pan bucket, so the balance is

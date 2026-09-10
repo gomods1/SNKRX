@@ -148,8 +148,14 @@ over it. Gold picked up is added to the round reward.
 
 ## The shop
 
-**Tab** moves between the three cards for sale, your party, the class icons,
-your items and the controls, and the group is announced when you enter it.
+The shop's controls are gathered into groups: the three cards for sale, your
+party, the class icons, your items, the shop controls and the go button.
+
+**Tab** and **Shift+Tab** move to the next and previous group and name it as you
+arrive. The **arrow keys** move within the group you are in, saying where you
+are in it — "party slot 2, Archer, 2 of 3" — and wrapping round at its ends.
+**Home** and **End** jump to the first and last control on the whole screen.
+Every other menu in the game is grouped the same way.
 
 **1**, **2** and **3** buy a card, **R** rerolls the shop for 2 gold,
 **backspace** sells the party member or item you are on, **shift backspace**
@@ -188,13 +194,26 @@ The guide points at F1 for the keys; in a written manual, here they are.
 
 ## Menus, shop and card screens
 
+Every screen gathers its controls into groups — on the shop: the cards for sale,
+your party, the class icons, your items, the shop controls and the go button.
+Tab moves between the groups, the arrow keys move within one.
+
 | Key | Does |
 | --- | --- |
-| `Tab` / `Shift+Tab` | Next / previous control |
-| Arrow keys | Same as Tab, when no snake is being steered |
-| `Home` / `End` | First / last control |
+| `Tab` / `Shift+Tab` | Next / previous group, landing on its first control |
+| Arrow keys | Previous / next control within the group, wrapping at its ends |
+| `Home` / `End` | First / last control on the whole screen |
 | `Enter` or `Space` | Activate |
 | `Backspace` | Secondary action — sell a hero or item, step a setting backwards |
+
+The group is named as you enter it, the way a screen reader announces a landmark,
+and each control says where it sits in its group: "video. window size minus, 1 of
+4". Coming back round to the top of a group names it again, so a list repeating
+itself is never mistaken for the screen repeating itself.
+
+The arrow keys steer the snake in the arena, so they do not move focus there.
+On that one screen Tab falls back to moving one control at a time, which is also
+what it does on a screen that has only one group. Nothing is ever out of reach.
 
 ## Shop only
 
@@ -224,8 +243,9 @@ The guide points at F1 for the keys; in a written manual, here they are.
 ## Choosing an item
 
 The four items are read out by number as soon as the screen opens. `1` to `4`
-take one, `R` rerolls (and the new four are read out), `Tab` browses the full
-descriptions.
+take one, `R` rerolls (and the new four are read out), the **arrow keys** browse
+the four full descriptions, and `Tab` moves on to the reroll and to the party and
+items you already have.
 
 ## What the sounds mean
 

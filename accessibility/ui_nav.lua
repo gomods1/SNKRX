@@ -3,10 +3,10 @@
 -- SNKRX's interface is entirely mouse-hover driven: widgets light up in
 -- GameObject:update_game_object when the pointer overlaps their shape, and each
 -- one raises its own tooltip from on_mouse_enter. Rather than reimplement all
--- of that, this module drives the real pointer. Focus moves with Tab or the
--- arrow keys, the OS cursor is warped onto the focused widget, and the engine's
--- own hover logic fires untouched. Enter and Backspace inject a left or right
--- click for the frame.
+-- of that, this module drives the real pointer. Focus moves with Tab between
+-- groups of controls and with the arrow keys inside one, the OS cursor is
+-- warped onto the focused widget, and the engine's own hover logic fires
+-- untouched. Enter and Backspace inject a left or right click for the frame.
 --
 -- The payoff is that everything keeps working: tooltips, highlights, sell
 -- prices, class previews, the lot. Nothing in the game had to learn about
@@ -17,7 +17,8 @@ local nav = {}
 access.nav = nav
 
 nav.enabled = true
-nav.items = {}
+nav.items = {}      -- every focusable widget on screen, in reading order
+nav.groups = {}     -- {name = ..., first = ..., last = ...} runs over nav.items
 nav.index = 0
 nav.focus = nil
 
@@ -57,35 +58,181 @@ local function is_redundant(o)
 end
 
 
--- The shop lays its widgets out in columns that interleave when read strictly
--- top to bottom: a party member, then a class icon, then an item, then another
--- party member. Grouping them into named regions turns Tab into something you
--- can hold a mental map of, and the region name is announced when it changes,
--- the way a screen reader announces a new landmark.
-local SHOP_REGIONS = {
-  {name = 'shop cards',    match = function(o) return is(o, 'ShopCard') end},
-  {name = 'party',         match = function(o) return is(o, 'CharacterPart') end},
-  {name = 'classes',       match = function(o) return is(o, 'ClassIcon') end},
-  {name = 'items',         match = function(o) return is(o, 'ItemCard') end},
-  {name = 'shop controls', match = function(o)
-      return is(o, 'RerollButton') or is(o, 'LockButton') or is(o, 'LevelButton') or is(o, 'Button')
-    end},
-  {name = 'start',         match = function(o) return is(o, 'GoButton') end},
-}
+-- ---------------------------------------------------------------- groups --
 
+-- Every screen lays its controls out in groups, and the keyboard follows that
+-- layout: Tab and shift Tab step to the next and previous group, the arrow keys
+-- move within the group you are in, and the group is announced as you enter it,
+-- the way a screen reader announces a new landmark. Tab used to visit every
+-- control on the screen in turn, which on the shop meant twenty-odd presses to
+-- cross it and no sense of where you were.
+--
+-- A layout is the list of groups in the order Tab visits them, and the first
+-- group whose match accepts a widget claims it. Whatever no group claims falls
+-- into a final "other" group rather than off the end of the keyboard: nothing
+-- on screen may become unreachable because a layout forgot about it.
 
-local function region_of(st, o)
-  if not (st.is and st:is(BuyScreen)) or st.in_tutorial or st.paused then return 0, nil end
-  for i, region in ipairs(SHOP_REGIONS) do
-    if region.match(o) then return i, region.name end
+local function classes(...)
+  local names = {...}
+  return function(o)
+    for _, name in ipairs(names) do
+      if is(o, name) then return true end
+    end
+    return false
   end
-  return #SHOP_REGIONS + 1, 'other'
 end
 
 
--- Returns the groups to look in and a key naming the situation: the guide,
--- the credits, a modal (options, item choice, death, victory) or the screen
--- itself. Focus is kept separately per situation.
+-- Matches the widgets a screen keeps a named reference to. Grouping the options
+-- by the game's own field names rather than by button text means rewording a
+-- button cannot quietly drop it into the wrong group. A field holding a list of
+-- widgets, as the accessibility row does, matches any widget in the list.
+local function named(...)
+  local fields = {...}
+  return function(o, st)
+    for _, field in ipairs(fields) do
+      local value = st[field]
+      if value == o then return true end
+      if type(value) == 'table' and not value.is then
+        for _, widget in ipairs(value) do
+          if widget == o then return true end
+        end
+      end
+    end
+    return false
+  end
+end
+
+
+-- Widgets the accessibility layer builds itself state their own group.
+local function declares(name)
+  return function(o) return o.a11y_group == name end
+end
+
+
+-- The credits colour-code their links by what the person or project did, which
+-- is the only thing on that screen that says where one list ends.
+local function coloured(color)
+  return function(o) return o.bg_color == color end
+end
+
+
+local function is_link(o) return access.describe.is_link(o) end
+local function anything() return true end
+
+
+-- Reads as "a button, but not one of those".
+local function except(match, excluded)
+  return function(o, st) return match(o, st) and not excluded(o, st) end
+end
+
+
+local LAYOUTS = {}
+
+-- The shop lays its widgets out in columns that interleave when read strictly
+-- top to bottom: a party member, then a class icon, then an item, then another
+-- party member. Named groups are what turn that into something you can hold a
+-- mental map of.
+LAYOUTS.shop = {
+  {name = 'shop cards',    match = classes('ShopCard')},
+  {name = 'party',         match = classes('CharacterPart')},
+  {name = 'classes',       match = classes('ClassIcon')},
+  {name = 'items',         match = classes('ItemCard')},
+  {name = 'shop controls', match = classes('RerollButton', 'LockButton', 'LevelButton', 'Button')},
+  {name = 'start',         match = classes('GoButton')},
+}
+
+LAYOUTS.main_menu = {
+  {name = 'menu',  match = except(anything, is_link)},
+  {name = 'links', match = is_link},
+}
+
+-- The options are one row of buttons per subject, drawn down the screen in this
+-- order. Grouping is what makes the screen navigable at all: it is by some way
+-- the longest list of controls in the game.
+LAYOUTS.options = {
+  {name = 'accessibility', match = named('access_buttons')},
+  {name = 'this run',      match = named('resume_button', 'restart_button')},
+  {name = 'volume',        match = named('sfx_button', 'music_button')},
+  {name = 'game',          match = named('mouse_button', 'dark_transition_button', 'run_timer_button')},
+  {name = 'video',         match = named('video_button_1', 'video_button_2', 'video_button_3', 'video_button_4')},
+  {name = 'effects',       match = named('screen_shake_button', 'cooldown_snake_button',
+                                         'arrow_snake_button', 'screen_movement_button')},
+  {name = 'new game plus', match = named('ng_plus_minus_button', 'ng_plus_plus_button')},
+  {name = 'leaving',       match = named('main_menu_button', 'quit_button')},
+}
+
+-- The same screen opens on the main menu, where there is no run behind it and
+-- the button that would have resumed one closes the options instead.
+LAYOUTS.menu_options = {}
+for i, group in ipairs(LAYOUTS.options) do
+  LAYOUTS.menu_options[i] = group.name == 'this run' and {name = 'back', match = group.match} or group
+end
+
+-- The item choice after a hard round: four cards, the reroll, and the build
+-- they are being added to, which is reference material and comes after.
+LAYOUTS.passives = {
+  {name = 'items on offer', match = classes('PassiveCard')},
+  {name = 'controls',       match = classes('RerollButton')},
+  {name = 'your party',     match = classes('CharacterPart')},
+  {name = 'your items',     match = classes('ItemCard')},
+}
+
+LAYOUTS.died = {
+  {name = 'what next',  match = classes('Button', 'RestartButton')},
+  {name = 'your party', match = classes('CharacterPart')},
+  {name = 'your items', match = classes('ItemCard')},
+}
+
+LAYOUTS.won = {
+  {name = 'what next',  match = except(classes('Button', 'RestartButton'), is_link)},
+  {name = 'links',      match = is_link},
+  {name = 'your party', match = classes('CharacterPart')},
+  {name = 'your items', match = classes('ItemCard')},
+}
+
+LAYOUTS.credits = {
+  {name = 'people',      match = except(coloured('bg'), named('close_button'))},
+  {name = 'libraries',   match = coloured('blue')},
+  {name = 'music',       match = coloured('green')},
+  {name = 'sound',       match = coloured('yellow')},
+  {name = 'playtesters', match = coloured('red')},
+  {name = 'close',       match = named('close_button')},
+}
+
+-- The guide's two diagrams, then the button that closes it.
+LAYOUTS.tutorial = {
+  {name = 'levelling example', match = classes('TutorialCharacterPart')},
+  {name = 'class example',     match = classes('TutorialClassIcon')},
+  {name = 'close',             match = classes('Button')},
+}
+
+LAYOUTS.sound_lab = {
+  {name = 'sounds',   match = declares('sounds')},
+  {name = 'controls', match = declares('controls')},
+}
+
+
+-- A widget may name its own group, the way it may state its own label; failing
+-- that the layout decides, and failing that it is still reachable as "other".
+local function group_of(st, layout, o)
+  local name = o.a11y_group
+  if not name then
+    for _, group in ipairs(layout) do
+      if group.match(o, st) then name = group.name break end
+    end
+  end
+  name = name or 'other'
+  for i, group in ipairs(layout) do
+    if group.name == name then return i, name end
+  end
+  return #layout + 1, name
+end
+
+
+-- Returns the groups to look in and a key naming the situation: the guide, the
+-- credits, one of the modals, or the screen itself. Focus is kept separately
+-- per situation, and the key also chooses the layout above.
 local function collect_groups(st)
   if st.in_tutorial and st.tutorial then return {st.tutorial}, 'tutorial' end
   -- The accessibility layer's own screen: it freezes everything behind it.
@@ -93,14 +240,19 @@ local function collect_groups(st)
   -- The credits sit in a group of their own and freeze every other button.
   if st.in_credits and st.credits then return {st.credits}, 'credits' end
   -- While a modal is up the screen behind it is inert, so only offer the modal.
-  if st.paused or st.choosing_passives or st.died or st.won then
-    return st.ui and {st.ui} or {}, 'modal'
+  if st.paused then
+    return st.ui and {st.ui} or {}, (st.is and st:is(MainMenu)) and 'menu_options' or 'options'
   end
+  if st.choosing_passives then return st.ui and {st.ui} or {}, 'passives' end
+  if st.died then return st.ui and {st.ui} or {}, 'died' end
+  if st.won then return st.ui and {st.ui} or {}, 'won' end
   local out = {}
   for _, name in ipairs({'main', 'main_ui', 'effects', 'ui'}) do
     local g = st[name]
     if g and g.objects then table.insert(out, g) end
   end
+  if st.is and st:is(BuyScreen) then return out, 'shop' end
+  if st.is and st:is(MainMenu) then return out, 'main_menu' end
   return out, 'screen'
 end
 
@@ -110,6 +262,7 @@ function nav.collect()
   if not st or st.transitioning then return {}, 'none' end
 
   local groups, context = collect_groups(st)
+  local layout = LAYOUTS[context] or {}
   local items = {}
   for _, group in ipairs(groups) do
     for _, o in ipairs(group.objects) do
@@ -119,42 +272,68 @@ function nav.collect()
     end
   end
 
-  -- Reading order: top to bottom in bands, then left to right inside a band.
-  -- The 14 pixel band matches the game's own row spacing closely enough that
-  -- visually-aligned widgets stay together.
-  --
-  -- The item-choice cards are the exception: they are drawn staggered so that
-  -- adjacent cards sit at different heights, which would read as 1, 3, 2, 4.
-  -- They carry an explicit card_i, which is also what the number-key shortcuts
-  -- use, so that ordering wins.
-  local card_row = math.huge
   for _, o in ipairs(items) do
-    if o.card_i then card_row = math.min(card_row, math.floor(o.y / 14)) end
-  end
-  for _, o in ipairs(items) do
-    o.a11y_region, o.a11y_region_name = region_of(st, o)
+    o.a11y_group_order, o.a11y_group_name = group_of(st, layout, o)
+    -- Reading order within the group: top to bottom in bands, then left to
+    -- right inside a band. The 14 pixel band matches the game's own row
+    -- spacing closely enough that visually-aligned widgets stay together.
+    --
+    -- Two screens state their order outright instead. A list laid out in
+    -- columns says so with a11y_order, because pixel positions would read it
+    -- across rather than down; and the item-choice cards are drawn staggered,
+    -- so adjacent cards sit at different heights and would read as 1, 3, 2, 4.
+    -- Those carry card_i, which is also what the number keys use.
     if o.a11y_order then
-      -- A screen that lays itself out in columns states its own reading order
-      -- rather than leaving it to be guessed from pixel positions.
-      o.a11y_region = -2
       o.a11y_row, o.a11y_col = o.a11y_order, 0
     elseif o.card_i then
-      -- On the item-choice screen the four cards are the point; the build
-      -- list beside them is reference material and comes after.
-      o.a11y_region = -1
-      o.a11y_row, o.a11y_col = card_row, o.card_i
+      o.a11y_row, o.a11y_col = 0, o.card_i
     else
       o.a11y_row, o.a11y_col = math.floor(o.y / 14), o.x
     end
   end
 
   table.sort(items, function(a, b)
-    if a.a11y_region ~= b.a11y_region then return a.a11y_region < b.a11y_region end
+    if a.a11y_group_order ~= b.a11y_group_order then return a.a11y_group_order < b.a11y_group_order end
+    -- Groups no layout named share one order, so their names break the tie:
+    -- that is what stops two of them from interleaving into a single run.
+    if a.a11y_group_name ~= b.a11y_group_name then return a.a11y_group_name < b.a11y_group_name end
     if a.a11y_row ~= b.a11y_row then return a.a11y_row < b.a11y_row end
     if a.a11y_col ~= b.a11y_col then return a.a11y_col < b.a11y_col end
     return tostring(a.id) < tostring(b.id)
   end)
   return items, context
+end
+
+
+-- Groups are the runs of neighbouring items that named the same group. Building
+-- them from the sorted list rather than from the layout means a group with
+-- nothing in it -- the classes before you own any, the items before you find
+-- one -- simply is not there to be tabbed into.
+local function build_groups(items)
+  local groups = {}
+  for i, o in ipairs(items) do
+    local last = groups[#groups]
+    if last and last.name == o.a11y_group_name then
+      last.last = i
+    else
+      table.insert(groups, {name = o.a11y_group_name, first = i, last = i})
+    end
+  end
+  return groups
+end
+
+
+local function adopt(items)
+  nav.items = items
+  nav.groups = build_groups(items)
+end
+
+
+function nav.group_at(i)
+  for gi, group in ipairs(nav.groups) do
+    if i >= group.first and i <= group.last then return gi end
+  end
+  return 0
 end
 
 
@@ -174,7 +353,7 @@ local function warp_to(o)
 end
 
 
-local spoken_region = nil
+local spoken_group = nil
 
 function nav.speak_focus(interrupt)
   local o = nav.focus
@@ -182,15 +361,20 @@ function nav.speak_focus(interrupt)
   local label, detail = access.describe.focusable(o)
   if not label then return end
 
-  -- Announce the region only when crossing into a new one, like a landmark.
+  -- Announce the group only when crossing into a new one, like a landmark.
   local prefix = ''
-  if o.a11y_region_name and o.a11y_region_name ~= spoken_region then
-    prefix = o.a11y_region_name .. '. '
+  if o.a11y_group_name and o.a11y_group_name ~= spoken_group then
+    prefix = o.a11y_group_name .. '. '
   end
-  spoken_region = o.a11y_region_name
+  spoken_group = o.a11y_group_name
 
+  -- Where you are inside the group, which is what the arrow keys move through.
+  -- "1 of 1" would only be noise, so a group of one says nothing.
   local position = ''
-  if #nav.items > 1 then position = ', ' .. nav.index .. ' of ' .. #nav.items end
+  local group = nav.groups[nav.group_at(nav.index)]
+  if group and group.last > group.first then
+    position = ', ' .. (nav.index - group.first + 1) .. ' of ' .. (group.last - group.first + 1)
+  end
   access.say(prefix .. label .. position, {interrupt = interrupt ~= false})
   if detail then access.say(detail, {interrupt = false}) end
 end
@@ -209,16 +393,56 @@ function nav.set_focus(i, speak)
 end
 
 
-function nav.move(delta)
+-- One step with the arrow keys: within the group, wrapping at its ends. `across`
+-- lets the step leave the group, which is what Tab falls back to on a screen
+-- with nothing to move between.
+function nav.move(delta, across)
   if #nav.items == 0 then
     access.say('nothing to select here', {interrupt = true})
     return
   end
   if nav.index == 0 then
     nav.set_focus(delta > 0 and 1 or #nav.items)
-  else
-    nav.set_focus(nav.index + delta)
+    return
   end
+  local group = not across and nav.groups[nav.group_at(nav.index)]
+  if not group then
+    nav.set_focus(nav.index + delta)
+    return
+  end
+  local size = group.last - group.first + 1
+  local i = ((nav.index - group.first + delta) % size) + group.first
+  -- Coming back round to the start of a group re-announces its name, so that a
+  -- list repeating itself is never mistaken for the screen repeating itself.
+  if (delta > 0 and i <= nav.index) or (delta < 0 and i >= nav.index) then spoken_group = nil end
+  nav.set_focus(i)
+end
+
+
+-- Tab: on to the first control of the next group, the way a screen reader jumps
+-- between landmarks. With one group or none there is nothing to jump between,
+-- so Tab walks the controls themselves rather than doing nothing.
+function nav.move_group(delta)
+  if #nav.items == 0 or #nav.groups <= 1 then
+    nav.move(delta, true)
+    return
+  end
+  local target
+  if nav.index == 0 then
+    target = delta > 0 and 1 or #nav.groups
+  else
+    target = ((nav.group_at(nav.index) - 1 + delta) % #nav.groups) + 1
+  end
+  spoken_group = nil
+  nav.set_focus(nav.groups[target].first)
+end
+
+
+-- Home and End cross the whole screen, so the group they land in is worth
+-- naming even if it is the one already being spoken.
+function nav.jump(i)
+  spoken_group = nil
+  nav.set_focus(i)
 end
 
 
@@ -350,8 +574,9 @@ function nav.update(dt)
   local st = main and main.current
   if st ~= last_screen then
     last_screen = st
-    nav.items, nav.index, nav.focus, signature = {}, 0, nil, nil
-    pending, release_next, clicked, spoken_region = nil, nil, nil, nil
+    adopt({})
+    nav.index, nav.focus, signature = 0, nil, nil
+    pending, release_next, clicked, spoken_group = nil, nil, nil, nil
     last_context, saved_focus = nil, {}
   end
 
@@ -367,7 +592,7 @@ function nav.update(dt)
     if last_context then saved_focus[last_context] = nav.focus and nav.focus.id or nil end
     last_context = context
     signature = sig
-    nav.items = items
+    adopt(items)
     nav.index, nav.focus = 0, nil
     local want = saved_focus[context]
     if want then
@@ -375,12 +600,12 @@ function nav.update(dt)
         if o.id == want then nav.index, nav.focus = i, o break end
       end
     end
-    spoken_region = nil
+    spoken_group = nil
     pending, release_next = nil, nil
   elseif sig ~= signature then
     signature = sig
     local previous, previous_index = nav.focus, nav.index
-    nav.items = items
+    adopt(items)
 
     local found = 0
     if previous then
@@ -403,7 +628,7 @@ function nav.update(dt)
       nav.index, nav.focus = 0, nil
     end
   else
-    nav.items = items
+    adopt(items)
   end
 
   service_click()
@@ -428,15 +653,22 @@ function nav.handle_input()
   local shift = down('lshift') or down('rshift')
 
   if pressed('tab') then
-    nav.move(shift and -1 or 1)
+    -- Tab is the group key. Where the arrow keys are busy steering the snake
+    -- they cannot move within a group, so there Tab goes back to walking the
+    -- controls one at a time and nothing on screen is out of reach.
+    if nav.arrows_available() then
+      nav.move_group(shift and -1 or 1)
+    else
+      nav.move(shift and -1 or 1, true)
+    end
     return true
   end
 
   if nav.arrows_available() then
     if pressed('down') or pressed('right') then nav.move(1) return true end
     if pressed('up') or pressed('left') then nav.move(-1) return true end
-    if pressed('home') then nav.set_focus(1) return true end
-    if pressed('end') then nav.set_focus(#nav.items) return true end
+    if pressed('home') then nav.jump(1) return true end
+    if pressed('end') then nav.jump(#nav.items) return true end
   end
 
   if #nav.items > 0 then
