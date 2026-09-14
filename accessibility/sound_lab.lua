@@ -21,7 +21,9 @@ access.sound_lab = lab
 -- as a list when it is flush left and as a scatter when it is centred. The rows
 -- are shared out between the columns rather than fixed, so adding a sound to
 -- the list below is the whole of the work.
-local COLUMN_LEFT = {28, 258}
+-- Three columns since the enemies stopped sharing one tone between them: two
+-- would now want ten rows, and ten rows reach the back button.
+local COLUMN_LEFT = {14, 172, 330}
 local ROW_TOP, ROW_STEP = 64, 19
 local BACK_Y = 200
 local DETAIL_Y = 222
@@ -42,7 +44,7 @@ end
 -- there.
 local VOICES = {
   enemy = {cues = {ahead = 'enemy_ahead', behind = 'enemy_behind'},
-           range = {16, 260}, pitch = {1.75, 0.70}, volume = {1.00, 0.40}},
+           range = {16, 260}, pitch = {1.75, 0.70}, volume = {0.90, 0.36}},
   elite = {cues = {ahead = 'elite_ahead', behind = 'elite_behind'},
            range = {30, 280}, pitch = {1.35, 0.75}, volume = {0.95, 0.50}},
   gold  = {cues = {ahead = 'gold_ahead',  behind = 'gold_behind'},
@@ -50,6 +52,26 @@ local VOICES = {
   orb   = {cues = {ahead = 'orb_ahead',   behind = 'orb_behind'},
            range = {16, 300}, pitch = {1.25, 0.80}, volume = {0.95, 0.35}},
 }
+
+
+-- The enemy tone comes in one flavour per kind of enemy, and the only way to
+-- learn eight timbres is to hear them against each other rather than one at a
+-- time with a fight in between. So they are played back to back, in the order
+-- the game introduces them, each held dead ahead at the same distance so that
+-- the pulse and the colour of the tone are the only things that change.
+--
+-- Kept in the game's own order rather than sorted, because that is the order
+-- the twelve tutorial runs go in and the order they will be met in.
+local KINDS = {'enemy', 'shooter', 'headbutter', 'exploder', 'speed_booster', 'tank', 'spawner', 'critter'}
+local KIND_HOLD = 1.15   -- seconds each, long enough for two of the slowest pulses
+
+local function kind_voice(kind)
+  return {cues = {ahead = kind .. '_ahead', behind = kind .. '_behind'},
+          range = VOICES.enemy.range, pitch = VOICES.enemy.pitch, volume = VOICES.enemy.volume}
+end
+
+local KIND_VOICES = {}
+for _, k in ipairs(KINDS) do KIND_VOICES[k] = kind_voice(k) end
 
 
 local function aim(voice, bearing, distance)
@@ -109,12 +131,54 @@ end
 local wall_steps, wall_duration = closing_wall()
 
 
+-- The whole fuse, the way it actually burns: ticks getting faster and higher
+-- for two and a half seconds, the ring going off, and then the shots crossing
+-- from every side. The tick used to be played once and the burst not at all,
+-- which taught the beginning of the sentence and not the end of it.
 local function mine_demo()
-  local steps = {ping(0, 'mine', -0.4, 1, 1)}
-  for i, pan in ipairs({-0.9, -0.45, 0, 0.45, 0.9}) do
-    table.insert(steps, ping(1 + i * 0.04, 'incoming', pan, 1, 0.7))
+  local fuse = 2.45
+  local steps, at = {}, 0
+  while at < fuse do
+    local u = at / fuse
+    table.insert(steps, ping(at, 'mine', -0.35, remap(u, 0, 1, 0.85, 1.7), 0.9))
+    at = at + remap(u, 0, 1, 0.40, 0.10)
   end
-  return steps
+  table.insert(steps, ping(fuse, 'burst', -0.35, 1, 1))
+  for i, pan in ipairs({-0.9, -0.45, 0, 0.45, 0.9}) do
+    table.insert(steps, ping(fuse + 0.2 + i * 0.05, 'incoming', pan, 1.15, 0.7))
+  end
+  return steps, fuse + 0.9
+end
+
+
+local mine_steps, mine_duration = mine_demo()
+
+
+-- One shot crossing the arena at a shooter's bolt speed, buzzing faster and
+-- higher as it comes, which is what the arena now does with it.
+local function closing_shot()
+  local steps, at, d = {}, 0, 205
+  while d > 22 do
+    table.insert(steps, ping(at, 'incoming', remap(d, 22, 205, -0.35, -0.95),
+      remap(d, 22, 205, 1.5, 0.85), remap(d, 22, 205, 1, 0.55)))
+    local gap = remap(d, 22, 205, 0.09, 0.30)
+    at = at + gap
+    d = d - 170 * gap
+  end
+  return steps, at + 0.4
+end
+
+
+local shot_steps, shot_duration = closing_shot()
+
+
+-- Every enemy tone in turn, held at the same place so that nothing but the
+-- tone itself changes.
+local function kinds_roll()
+  return function(t)
+    local i = clamp(math.floor(t / KIND_HOLD) + 1, 1, #KINDS)
+    aim(KIND_VOICES[KINDS[i]], 0, 120)
+  end
 end
 
 
@@ -138,20 +202,50 @@ local SOUNDS = {
       steps = sweep('enemy_close', 9, 0.45, 0.45, 0.14, 1, 0.9)},
   },
   {
+    -- The seven enemy tones back to back. The most useful ten seconds on this
+    -- screen, and the reason the rest of it is worth learning: everything
+    -- below is a moment, and this is the sound that is playing underneath all
+    -- of them for the whole round.
+    key = 'enemy_kinds',
+    demo = {duration = #KINDS * KIND_HOLD, track = kinds_roll()},
+  },
+  {
     key = 'enemy_shot',
-    demo = {duration = 1.4, steps = {
-      ping(0, 'incoming', -0.85, 0.95, 0.9),
-      ping(0.35, 'incoming', -0.6, 1.05, 0.95),
-      ping(0.7, 'incoming', -0.3, 1.15, 1),
+    demo = {duration = shot_duration, steps = shot_steps},
+  },
+  {
+    key = 'shooter_aim',
+    demo = {duration = 2.1, steps = {
+      ping(0, 'aim', 0.5, 1, 1),
+      ping(1.0, 'incoming', 0.4, 1, 0.8),
+      ping(1.15, 'incoming', 0.4, 1.05, 0.8),
+      ping(1.3, 'incoming', 0.4, 1.1, 0.8),
     }},
   },
   {
+    -- Two seconds apart, as it is in the arena: the gap is the dodge.
     key = 'headbutter',
-    demo = {duration = 1.8, steps = {ping(0, 'charge', 0.55, 1, 1), ping(0.9, 'charge', 0.55, 1.05, 1)}},
+    demo = {duration = 2.7, steps = {ping(0, 'charge', 0.55, 1, 1), ping(2, 'butt', 0.55, 1, 1)}},
   },
   {
     key = 'mine',
-    demo = {duration = 2.2, steps = mine_demo()},
+    demo = {duration = mine_duration, steps = mine_steps},
+  },
+  {
+    key = 'flung',
+    demo = {duration = 1.5, steps = {ping(0, 'shove', -0.6, 1, 1),
+      ping(0.55, 'enemy_close', -0.5, 1, 0.9), ping(0.69, 'enemy_close', -0.45, 1, 0.9)}},
+  },
+  {
+    key = 'boosted',
+    demo = {duration = 1.3, steps = {ping(0, 'boost', 0, 1, 1)}},
+  },
+  {
+    -- The burst and then the tone it leaves behind, because a cloud of
+    -- critters is the one arrival that hands you a new sound to steer by.
+    key = 'critters',
+    demo = {duration = 3.6, steps = {ping(0, 'swarm', 0.4, 1, 1)},
+      track = pass(KIND_VOICES.critter, 3.6, 30, 200)},
   },
   {
     key = 'arriving',

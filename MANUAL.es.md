@@ -105,21 +105,50 @@ El más cercano mantiene el tono de enemigo, así que déjalo apagado y detrás 
 ti y deja que tus héroes le disparen. Un traqueteo rápido y duro por encima de
 ese tono significa que un enemigo te está tocando y quitando vida a un héroe. Un
 pitido suelto a un lado mientras el tono suena al otro significa que un segundo
-enemigo se acerca desde ahí y estás a punto de quedar atrapado. Un zumbido es un
-disparo que viene hacia ti; gira de lado para dejarlo pasar.
+enemigo se acerca desde ahí y estás a punto de quedar atrapado. Un zumbido que
+cae, repitiéndose más rápido a medida que llega, es un disparo que viene hacia
+ti; gira de lado para dejarlo pasar.
 
 ## Enemigos especiales
 
-Los enemigos especiales se anuncian cuando llegan.
+Hay ocho tipos de enemigo, y **el tono de enemigo te dice cuál tienes más
+cerca**, porque cada tipo mantiene un tono propio. Se distinguen por lo rápido y
+lo profundo que pulsa el tono, no por la altura, porque la altura ya está
+llevando la distancia:
 
-- **Aceleradores**: hacen más rápidos a los enemigos cercanos.
-- **Explosivos**: dejan una mina al morir; una mina se anuncia con un tic y
-  estalla en un anillo de disparos un momento después.
-- **Embestidores**: se preparan con un tono tembloroso y luego cargan contra ti;
-  gira de lado.
-- **Tanques**: son lentos y difíciles de matar.
-- **Tiradores**: se paran y disparan ráfagas.
-- **Generadores**: estallan en bichos al morir.
+| Tipo | Su tono |
+| --- | --- |
+| Perseguidor | Simple y estable. El más bajo de volumen de los ocho: todo lo demás suena más movido que esto. |
+| Tirador | Una caña hueca, respirando despacio. |
+| Embestidor | Crispado, vez y media más rápido que un perseguidor, casi cortándose entre pulsos. |
+| Explosivo | Fino, girando rápido: la mecha en la que está a punto de convertirse. |
+| Acelerador | Agudo y ligero. |
+| Tanque | Grave, espeso y casi sin pulso. |
+| Generador | Lento, y doblado unos pocos centésimos por encima de sí mismo, de modo que las dos mitades baten. |
+| Bicho | Fino y escurridizo, y más bajo todavía que un perseguidor. |
+
+La pantalla de **aprender sonidos** reproduce los ocho seguidos en *ocho tonos
+de enemigo*, que es la forma más rápida de metérselos al oído.
+
+Además de su tono, cada enemigo especial tiene un sonido para lo que hace, y
+cada uno se anuncia también en palabras.
+
+- **Tiradores**: se plantan con una caña hueca corta y disparan una ráfaga de
+  tres alrededor de un segundo después. Una vez parados no vuelven a moverse, así
+  que son el único enemigo que puedes dejar tranquilamente para el final.
+- **Embestidores**: se preparan con un zumbido que sube y luego se lanzan en
+  línea recta con un golpe de aire duro que cae. Los dos segundos entre esos dos
+  sonidos son la esquiva: gira de lado, no huyas.
+- **Explosivos**: dejan una mina al morir. Hace tic cada vez más rápido y más
+  agudo durante dos segundos y medio y después golpea en un anillo de ocho
+  disparos lanzados en todas direcciones. Aléjate del tic antes de que termine.
+- **Tanques**: son lentos y difíciles de matar, y cada pocos segundos te lanzan
+  al enemigo que tienen al lado: un barrido grave que sube, y luego algo que
+  llega mucho más rápido de lo que caminaba.
+- **Aceleradores**: mueren en un destello limpio que sube, y todo lo que tienen
+  cerca se mueve al triple de velocidad durante los siguientes segundos.
+- **Generadores**: mueren en un traqueteo agudo y dejan de cinco a ocho bichos,
+  a los que los disparos normales atraviesan sin más.
 
 La pantalla de **entrenamiento** del menú principal combate contra cada uno de
 ellos por separado, una partida corta por enemigo, después de explicar lo que
@@ -292,10 +321,24 @@ medida que se acercan:
 
 | Sonido | Es |
 | --- | --- |
-| Tono brillante que pulsa | El **enemigo** más cercano. |
+| Tono que pulsa | El **enemigo** más cercano, en uno de ocho sabores: ver más abajo. |
 | Tono grave y pesado | La **élite** de una ronda de élite, esté donde esté bajo el enjambre. |
 | Moneda que tintinea | El **oro** suelto más cercano. |
 | Timbre suave y cálido | El **orbe curativo** más cercano. |
+
+El tono de enemigo viene en un sabor por tipo de enemigo, y se distinguen por
+cómo pulsa el tono y no por su altura, porque la altura lleva la distancia:
+
+| Pulso | Es |
+| --- | --- |
+| Simple y estable, y el más bajo de volumen de los ocho | Un **perseguidor**, el enemigo normal. |
+| Una caña hueca, respirando despacio | Un **tirador**. |
+| Crispado, vez y media más rápido, casi cortándose entre pulsos | Un **embestidor**. |
+| Fino y girando rápido | Un **explosivo**. |
+| Agudo y ligero | Un **acelerador**. |
+| Grave, espeso, casi sin pulso | Un **tanque**. |
+| Lento, y batiendo contra sí mismo | Un **generador**. |
+| Fino y escurridizo, más bajo todavía | Un **bicho**. |
 
 Todo lo demás pasa una sola vez:
 
@@ -303,9 +346,15 @@ Todo lo demás pasa una sola vez:
 | --- | --- |
 | Traqueteo rápido y duro | Un enemigo a distancia de contacto: estás recibiendo daño. |
 | Pitido suelto a un lado | Un segundo enemigo acercándose por el lado contrario al que estás siguiendo. |
-| Zumbido | Un disparo que viene hacia ti. |
-| Tono tembloroso | Un embestidor preparándose para cargar contra ti. |
-| Tic agudo y seco | Una mina, a punto de estallar en un anillo de disparos. |
+| Zumbido que cae, repitiéndose más rápido | Un disparo que viene hacia ti, acercándose. |
+| Caña hueca y corta | Un tirador se ha plantado y disparará dentro de un segundo. |
+| Zumbido que sube | Un embestidor preparándose para cargar contra ti. Dos segundos después se lanza. |
+| Golpe de aire duro que cae | Un embestidor lanzándose. |
+| Tic seco, más rápido y más agudo | Una mina consumiendo su mecha. |
+| Golpe sordo y ruidoso | La mina estallando en un anillo de disparos. |
+| Barrido grave que sube | Te han lanzado un enemigo, un tanque o la élite forzadora. |
+| Destello limpio que sube | Los enemigos cercanos a un acelerador que muere se han vuelto mucho más rápidos. |
+| Traqueteo agudo | Bichos saliendo de un generador, o de la escolta de una élite enjambradora. |
 | Golpe seco de madera | El muro hacia el que vas, más rápido y más agudo a medida que te acercas. |
 | Fondo grave y suave a un lado | Vas pegado a un muro por ese lado. |
 | Tono ondulante | Un punto donde están a punto de aparecer enemigos, situado donde van a estar. |

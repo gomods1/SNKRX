@@ -257,14 +257,32 @@ local function install_hooks()
     end
   end
 
-  -- Every boss attack is drawn as lightning from the boss to its targets.
+  -- Every ability an enemy has -- each elite attack, a tank shoving its
+  -- neighbour, a dying speed booster handing out its speed -- is drawn as
+  -- lightning from the thing doing it to the thing it is done to, and nothing
+  -- else in the game draws lightning from an enemy. So this one wrapper covers
+  -- all of them, and `dst` is what the ability was aimed at.
   if LightningLine then
     local lightning_init = LightningLine.init
     LightningLine.init = function(self, args)
       local result = lightning_init(self, args)
-      if access.enabled and args and args.src and args.src.boss then
-        pcall(access.hud.on_boss_attack, args.src, args.color)
+      local src = access.enabled and args and args.src
+      if src and src.boss then
+        pcall(access.hud.on_boss_attack, src, args.color, args.dst)
+      elseif src and (src.tank or src.speed_booster) then
+        pcall(access.hud.on_enemy_ability, src, args.dst)
       end
+      return result
+    end
+  end
+
+  -- Critters arrive in clouds of five to eight, from a spawner dying, from a
+  -- swarmer elite bursting an escort, or from an enemy that was infested.
+  if EnemyCritter then
+    local critter_init = EnemyCritter.init
+    EnemyCritter.init = function(self, args)
+      local result = critter_init(self, args)
+      if access.enabled then pcall(access.hud.on_critter, self) end
       return result
     end
   end

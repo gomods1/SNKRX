@@ -29,18 +29,30 @@ hud.announce_combat = true
 -- than pings that only say where something was when the timer last came round.
 hud.beacons = true
 
-local timers = {enemy = 0, wall = 0, edge = 0, pickup = 0, scan = 0, boss = 0, pinch = 0}
+local timers = {enemy = 0, wall = 0, edge = 0, pickup = 0, scan = 0, boss = 0, pinch = 0, shot = 0}
 local cache = {enemies = {}, pickups = {}}
 local watched = {}
+-- Mines burning down, and the delayed second half of a special enemy's ping.
+-- Both are declared up here with the rest of the state rather than beside the
+-- code that fills them, because hud.reset has to be able to empty them and it
+-- is defined next.
+local mines = {}
+local pending = {}
+local shots = {}
+local cue_last = {}
 
 
 function hud.reset()
-  timers = {enemy = 0, wall = 0, edge = 0, pickup = 0, scan = 0, boss = 0, pinch = 0}
+  timers = {enemy = 0, wall = 0, edge = 0, pickup = 0, scan = 0, boss = 0, pinch = 0, shot = 0}
   cache = {enemies = {}, pickups = {}}
   watched = {elite = {}, seen = {}, low = {}}
+  mines = {}
+  pending = {}
+  shots = {}
+  cue_last = {}
   hud._spawn_pending, hud._spawn_scheduled, hud._spawn_boss = nil, nil, nil
   hud._arrivals, hud._arrivals_scheduled = nil, nil
-  hud._last_incoming, hud._last_bounce, hud._last_boss_attack = nil, nil, nil
+  hud._last_bounce, hud._last_boss_attack = nil, nil
   if access.audio.stop_beacons then access.audio.stop_beacons() end
 end
 hud.reset()
@@ -94,6 +106,22 @@ local function range_and_bearing(p, o)
 end
 
 
+-- One cue for one thing that happened, however many times the game says it.
+--
+-- The abilities down at the hook points are all drawn once per target rather
+-- than once per action: a dying speed booster throws a line at every enemy in
+-- range, the forcer throws one per escort, and a swarmer's critters arrive
+-- twice over -- once as the elite's attack and again as five separate
+-- critters. So the limiter is keyed on the cue rather than on the caller, and
+-- the callers collapse against each other as well as against themselves.
+local function cue_once(name, bearing, volume, gap)
+  local now = love.timer.getTime()
+  if cue_last[name] and (now - cue_last[name]) < (gap or 0.5) then return end
+  cue_last[name] = now
+  access.audio.play(name, math.sin(bearing), 1, volume or 1)
+end
+
+
 -- ------------------------------------------------------------------ sonar --
 
 local function scan_enemies(p, a)
@@ -102,7 +130,10 @@ local function scan_enemies(p, a)
   for _, e in ipairs(objects) do
     if not e.dead then
       local d, b = range_and_bearing(p, e)
-      table.insert(list, {o = e, d = d, b = b})
+      -- What kind it is, carried along with where it is, because every sonar
+      -- decision below is now made per kind and working it out again for each
+      -- of them would mean walking the same field tests three times a frame.
+      table.insert(list, {o = e, d = d, b = b, kind = describe.enemy_key(e)})
     end
   end
   table.sort(list, function(l, r) return l.d < r.d end)
@@ -128,6 +159,26 @@ local function scan_pickups(p, a)
 end
 
 
+-- The separate-pings mode that B switches back to has no held tone to carry a
+-- timbre, and its pitch and its rate are both spoken for by distance. What is
+-- left is rhythm: a plain seeker stays the single ping it always was, and each
+-- special follows it with one echo at a spacing of its own. Even unparsed, two
+-- taps instead of one already says "not an ordinary enemy", which is the half
+-- of the message that has to arrive inside a second.
+local PING_TAG = {
+  critter       = 0.05,
+  speed_booster = 0.09,
+  exploder      = 0.14,
+  shooter       = 0.20,
+  headbutter    = 0.27,
+  tank          = 0.36,
+  spawner       = 0.46,
+}
+
+
+-- The tap itself waits in `pending`, drained by update_sonar. A table rather
+-- than a trigger:after so that a queued tap dies with the arena instead of
+-- firing into the shop screen behind it.
 local function ping_enemy(e, volume)
   local pan = math.sin(e.b)
   local front = math.cos(e.b) > 0
@@ -137,6 +188,11 @@ local function ping_enemy(e, volume)
   -- few pixels get their own unmistakable sound.
   if e.d < 26 then name = 'enemy_close' end
   access.audio.play(name, pan, pitch, volume or 1)
+  local gap = e.kind and PING_TAG[e.kind]
+  if gap and name ~= 'enemy_close' then
+    table.insert(pending, {t = gap, name = name, pan = pan, pitch = pitch * 1.06,
+      volume = (volume or 1) * 0.8})
+  end
 end
 
 
@@ -174,6 +230,22 @@ local ELITE_BEACON = {ahead = 'elite_ahead', behind = 'elite_behind'}
 local GOLD_BEACON  = {ahead = 'gold_ahead',  behind = 'gold_behind'}
 local ORB_BEACON   = {ahead = 'orb_ahead',   behind = 'orb_behind'}
 
+-- ...and one pair per kind of enemy, so that the tone which is playing almost
+-- continuously says what it is tracking and not merely where it is. Without
+-- this the loudest thing in a fight is the same sound whether the thing
+-- closing on you is a tank you can ignore or a headbutter about to remove a
+-- hero, which is most of why the twelve tutorial runs all sounded alike.
+local KIND_BEACON = {
+  enemy         = ENEMY_BEACON,
+  shooter       = {ahead = 'shooter_ahead',       behind = 'shooter_behind'},
+  headbutter    = {ahead = 'headbutter_ahead',    behind = 'headbutter_behind'},
+  tank          = {ahead = 'tank_ahead',          behind = 'tank_behind'},
+  exploder      = {ahead = 'exploder_ahead',      behind = 'exploder_behind'},
+  speed_booster = {ahead = 'speed_booster_ahead', behind = 'speed_booster_behind'},
+  spawner       = {ahead = 'spawner_ahead',       behind = 'spawner_behind'},
+  critter       = {ahead = 'critter_ahead',       behind = 'critter_behind'},
+}
+
 
 -- The enemy closing from the other side of the snake, if there is one. Being
 -- pinched between two of them is the situation that kills runs.
@@ -189,17 +261,43 @@ local function pinching(nearest)
 end
 
 
-local function sonar_enemies(dt, p, a)
+-- Which enemy the beacon is following.
+--
+-- "Whichever is nearest" was fine while every enemy sounded the same; now that
+-- the beacon changes voice with the kind of thing it has hold of, two enemies
+-- trading places a few pixels apart would swap the tone back and forth several
+-- times a second, which is unlistenable and churns a Source each time. So the
+-- one it has is kept until it dies or something gets a clear fifth closer.
+local function tracked_enemy()
   local nearest = cache.enemies[1]
+  if not nearest then
+    watched.tracked_id = nil
+    return nil
+  end
+  if watched.tracked_id and watched.tracked_id ~= nearest.o.id then
+    for _, e in ipairs(cache.enemies) do
+      if e.o.id == watched.tracked_id then
+        if e.d <= nearest.d * 1.2 then return e end
+        break
+      end
+    end
+  end
+  watched.tracked_id = nearest.o.id
+  return nearest
+end
+
+
+local function sonar_enemies(dt, p, a)
+  local nearest = tracked_enemy()
 
   if hud.beacons then
     -- One continuous tone for the nearest enemy. It never stops while there is
     -- something to track, so turning away from it is something you can hear
     -- happening rather than something you infer from the next ping.
     if nearest then
-      access.audio.beacon('enemy', ENEMY_BEACON, nearest.b,
+      access.audio.beacon('enemy', KIND_BEACON[nearest.kind] or ENEMY_BEACON, nearest.b,
         remap(nearest.d, 16, 260, 1.75, 0.70),
-        remap(nearest.d, 16, 260, 1.00, 0.40))
+        remap(nearest.d, 16, 260, 0.90, 0.36))
 
       -- Contact keeps its own hard rattle over the top: the beacon says where
       -- something is, this says that it is on you now.
@@ -317,6 +415,101 @@ local function sonar_pickups(dt)
 end
 
 
+-- Mines on the ground, and how long each has been burning.
+--
+-- A mine used to get one tick as it was laid and a sentence, and then nothing
+-- at all for the two and a half seconds it spent counting down -- which is
+-- precisely the information a sighted player is being given in that time, by
+-- watching it blink faster. So it ticks the whole way down, accelerating and
+-- rising, and its own position is read afresh every tick: a mine does not
+-- move, but the snake does, and a fuse that stays where you last heard it is
+-- a fuse you steer into.
+--
+-- Ungated by the enemy-sonar toggle on purpose. F is for the swarm, and
+-- silencing the swarm should not silence the one hazard in the game that kills
+-- you for standing still.
+
+
+local function fuse_length()
+  -- The game's own countdown: a beat to grow, then three ticks and the ring.
+  return 0.05 + 3 * math.max(0.3, 0.8 - (current_new_game_plus or 0) * 0.1)
+end
+
+
+local function sonar_mines(dt, p)
+  for i = #mines, 1, -1 do
+    local m = mines[i]
+    m.t = m.t + dt
+    if m.o.dead then
+      -- Eight shots leave in every direction at once, so this is not a warning
+      -- to steer by: it is the loudest thing the layer plays, and it means the
+      -- next second belongs to whoever is furthest from where it went off.
+      local d, b = range_and_bearing(p, m.o)
+      access.audio.play('burst', math.sin(b), 1, remap(d, 20, 280, 1, 0.40))
+      table.remove(mines, i)
+    elseif m.t > m.fuse + 2 then
+      -- It never reported going off. Rather than tick for ever, let it go.
+      table.remove(mines, i)
+    else
+      m.tick = m.tick - dt
+      if m.tick <= 0 then
+        local u = clamp(m.t / m.fuse, 0, 1)
+        m.tick = remap(u, 0, 1, 0.40, 0.10)
+        local d, b = range_and_bearing(p, m.o)
+        access.audio.play('mine', math.sin(b), remap(u, 0, 1, 0.85, 1.7),
+          remap(d, 20, 280, 1, 0.35))
+      end
+    end
+  end
+end
+
+
+-- Enemy shots in the air.
+--
+-- These used to get a single buzz at the moment they were fired, and only if
+-- they were fired from inside 220 pixels -- which in an arena 437 pixels
+-- across meant a shooter working from the far corner was silent, and a shot
+-- that was going to arrive in a second and a half announced itself once, a
+-- second and a half early, and then said nothing while it crossed.
+--
+-- So a shot is tracked instead, and buzzes as it closes, faster and higher the
+-- nearer it gets, in exactly the shape the wall knock uses. Only the nearest
+-- shot actually converging on the snake is ever sounded: eight of them leaving
+-- a mine at once is one voice getting closer, not a chord.
+local function sonar_shots(dt, p)
+  local nearest, near_d
+  for i = #shots, 1, -1 do
+    local s = shots[i]
+    s.t = s.t + dt
+    if s.o.dead or s.t > 8 then
+      table.remove(shots, i)
+    else
+      local dx, dy = s.o.x - p.x, s.o.y - p.y
+      local d = math.sqrt(dx * dx + dy * dy)
+      -- Converging, not merely nearby: a shot that has already gone past is a
+      -- shot that no longer needs steering around, and half of a fan never
+      -- comes anywhere near you.
+      local towards = math.atan2(-dy, -dx)
+      if d < 210 and math.abs(describe.wrap_angle((s.o.r or 0) - towards)) < math.pi / 5 then
+        if not near_d or d < near_d then nearest, near_d = s, d end
+      end
+    end
+  end
+
+  if not nearest then
+    timers.shot = 0
+    return
+  end
+  timers.shot = timers.shot - dt
+  if timers.shot <= 0 then
+    timers.shot = remap(near_d, 20, 210, 0.09, 0.30)
+    local b = describe.wrap_angle(math.atan2(nearest.o.y - p.y, nearest.o.x - p.x) - p.r)
+    access.audio.play('incoming', math.sin(b), remap(near_d, 20, 210, 1.5, 0.85),
+      remap(near_d, 20, 210, 1, 0.55))
+  end
+end
+
+
 local function update_sonar(dt)
   local p, a = head()
   if not p then return end
@@ -328,6 +521,18 @@ local function update_sonar(dt)
     cache.pickups = scan_pickups(p, a)
   end
 
+  -- The second tap of a special enemy's ping, once its gap has elapsed.
+  for i = #pending, 1, -1 do
+    local tap = pending[i]
+    tap.t = tap.t - dt
+    if tap.t <= 0 then
+      access.audio.play(tap.name, tap.pan, tap.pitch, tap.volume)
+      table.remove(pending, i)
+    end
+  end
+
+  sonar_mines(dt, p)
+  sonar_shots(dt, p)
   if hud.sonar_enemies then sonar_enemies(dt, p, a) end
   if hud.sonar_walls then sonar_walls(dt, p, a) end
   if hud.sonar_pickups then sonar_pickups(dt) end
@@ -437,10 +642,13 @@ local function watch_enemies(a)
       if watched.elite[o.id] ~= state then
         watched.elite[o.id] = state
         if state == 'charge' then
+          -- Two seconds of wind-up, then the charge. The two used to be the
+          -- same cue at two pitches, which meant the moment worth reacting to
+          -- sounded like the warning repeated slightly higher.
           access.audio.play('charge', math.sin(e.b), 1, 1)
           access.say(T('a11y.arena.headbutter_charging', describe.distance(e.d), describe.clock(e.b)), {interrupt = false})
         elseif state == 'butt' then
-          access.audio.play('charge', math.sin(e.b), 1.5, 1)
+          access.audio.play('butt', math.sin(e.b), 1, 1)
           access.say(T('a11y.arena.headbutt_from', describe.side(e.b)), {interrupt = true, priority = true})
         end
       end
@@ -449,6 +657,10 @@ local function watch_enemies(a)
       if watched.elite[o.id] ~= state then
         watched.elite[o.id] = state
         if state == 'shooting' then
+          -- A shooter stopping to aim is the one warning that arrives before
+          -- the shots rather than with them, and it was the only special
+          -- enemy's telegraph with no sound on it at all.
+          access.audio.play('aim', math.sin(e.b), 1, 1)
           access.say(T('a11y.arena.shooter_aiming', describe.distance(e.d), describe.clock(e.b)), {interrupt = false})
         end
       end
@@ -607,63 +819,109 @@ function hud.on_spawn_marker(x, y)
 end
 
 
--- Shooter elites and several bosses fire volleys, which are invisible to every
--- other cue here. Only shots actually travelling towards the snake are worth a
--- sound, and only a couple per volley, or a fan of eight becomes a chord.
+-- Shooters, the exploder's mines and several of the bosses all fire volleys,
+-- and every one of them arrives here. The hook only writes the shot down; what
+-- it sounds like on the way in is sonar_shots' business, and putting it there
+-- rather than here is what lets a shot be heard closing rather than only being
+-- announced as it leaves.
 function hud.on_enemy_projectile(p)
-  local player, a = head()
-  if not player or not a then return end
-  if not playable() then return end
-
-  local now = love.timer.getTime()
-  if hud._last_incoming and (now - hud._last_incoming) < 0.18 then return end
-
-  local dx, dy = p.x - player.x, p.y - player.y
-  local d = math.sqrt(dx * dx + dy * dy)
-  if d > 220 then return end
-
-  local towards_player = math.atan2(-dy, -dx)
-  if math.abs(describe.wrap_angle((p.r or 0) - towards_player)) > math.pi / 5 then return end
-
-  hud._last_incoming = now
-  local b = describe.wrap_angle(math.atan2(dy, dx) - player.r)
-  access.audio.play('incoming', math.sin(b), remap(d, 20, 220, 1.5, 0.85), 0.9)
+  local player = head()
+  if not player or not playable() then return end
+  table.insert(shots, {o = p, t = 0})
 end
 
 
 -- An exploder has died and left a mine that will burst into a ring of shots
--- in about two seconds. On screen it is a small blinking dot.
+-- in about two seconds. On screen it is a small blinking dot, blinking faster
+-- as it runs down; sonar_mines is where that becomes a fuse you can hear.
 function hud.on_mine(m)
   local p, a = head()
   if not p or not a or not playable() then return end
   local d, b = range_and_bearing(p, m)
-  access.audio.play('mine', math.sin(b), 1, 1)
+  access.audio.play('mine', math.sin(b), 0.85, 1)
+  table.insert(mines, {o = m, t = 0, tick = 0.4, fuse = fuse_length()})
   access.say(T('a11y.arena.mine', describe.distance(d), describe.clock(b)), {interrupt = false})
 end
 
 
--- Every boss attack is drawn as lightning from the boss to its targets. Once
--- per volley, say what the elite just did.
+-- Every elite attack, and the two abilities an ordinary enemy has, are drawn
+-- as lightning from the thing doing it to the thing it is done to. Each now
+-- gets a cue as well as a sentence: speech says what happened, and it arrives
+-- a beat late and can be queued behind two other lines, whereas the cue is
+-- immediate and is what tells you the fight just changed shape.
 local BOSS_ATTACKS = {
-  speed_booster = 'a11y.arena.elite_speeds_allies',
-  forcer = 'a11y.arena.elite_flings_enemies',
-  swarmer = 'a11y.arena.elite_bursts_ally',
+  speed_booster = {text = 'a11y.arena.elite_speeds_allies',  cue = 'boost'},
+  forcer        = {text = 'a11y.arena.elite_flings_enemies', cue = 'shove'},
+  swarmer       = {text = 'a11y.arena.elite_bursts_ally',    cue = 'swarm'},
 }
 
-function hud.on_boss_attack(boss, color)
+-- The randomizer picks one of the other elites' attacks each time and says
+-- which only by the colour of the lightning.
+local RANDOMIZER_ATTACKS = {
+  green  = BOSS_ATTACKS.speed_booster,
+  yellow = BOSS_ATTACKS.forcer,
+  purple = BOSS_ATTACKS.swarmer,
+  blue   = {text = 'a11y.arena.elite_detonates_ally', cue = 'burst'},
+}
+
+
+function hud.on_boss_attack(boss, color, target)
   if not playable() then return end
   local now = love.timer.getTime()
   if hud._last_boss_attack and (now - hud._last_boss_attack) < 1 then return end
   hud._last_boss_attack = now
-  local text = BOSS_ATTACKS[boss.boss]
+  local attack = BOSS_ATTACKS[boss.boss]
   if boss.boss == 'randomizer' then
-    if color == green[0] then text = BOSS_ATTACKS.speed_booster
-    elseif color == yellow[0] then text = BOSS_ATTACKS.forcer
-    elseif color == purple[0] then text = BOSS_ATTACKS.swarmer
-    elseif color == blue[0] then text = 'a11y.arena.elite_detonates_ally' end
+    if color == green[0] then attack = RANDOMIZER_ATTACKS.green
+    elseif color == yellow[0] then attack = RANDOMIZER_ATTACKS.yellow
+    elseif color == purple[0] then attack = RANDOMIZER_ATTACKS.purple
+    elseif color == blue[0] then attack = RANDOMIZER_ATTACKS.blue end
   end
   -- The exploder boss plants mines, and every mine already announces itself.
-  if text then access.say(T(text), {interrupt = false}) end
+  if not attack then return end
+  local p = head()
+  if p and attack.cue then
+    -- Panned to whatever the attack was aimed at rather than to the elite: a
+    -- flung escort leaves from the elite but arrives from somewhere else, and
+    -- where it arrives from is the half worth knowing.
+    local _, b = range_and_bearing(p, target or boss)
+    cue_once(attack.cue, b, 1)
+  end
+  access.say(T(attack.text), {interrupt = false})
+end
+
+
+-- A tank shoving the enemy next to it at you, or a speed booster handing its
+-- speed to everything around it as it dies. Both are ordinary-enemy abilities
+-- that changed the fight and made no sound at all: the tank's push is how a
+-- seeker you had accounted for arrives twice as fast as it should, and the
+-- booster's parting gift is the reason a swarm you were outrunning catches up.
+function hud.on_enemy_ability(src, target)
+  if not playable() then return end
+  local p = head()
+  if not p then return end
+  -- A shove is panned to the enemy being thrown, because that is the thing
+  -- that arrives; a boost is panned to the booster, because nothing arrives at
+  -- all and where it happened is what tells you which half of the swarm just
+  -- got faster.
+  local kind = src.tank and 'shove' or 'boost'
+  local _, b = range_and_bearing(p, (kind == 'shove' and target) or src)
+  cue_once(kind, b, 0.85)
+end
+
+
+-- Critters, arriving in a cloud: a spawner dying, a swarmer elite bursting one
+-- of its escorts, or an infested enemy coming apart. Five to eight of them
+-- appear in the same frame, so this is one cue for the cloud.
+function hud.on_critter(c)
+  if not playable() then return end
+  -- A critter spawned at a position that came out as NaN kills itself in its
+  -- constructor, before it has a place to be panned to.
+  if c.dead then return end
+  local p = head()
+  if not p then return end
+  local _, b = range_and_bearing(p, c)
+  cue_once('swarm', b, 0.9)
 end
 
 

@@ -151,9 +151,15 @@ items you already have.
 The main menu has a **learn sounds** screen. It lists every sound the game
 makes, one per line; moving onto one reads its name and then what it means, and
 `Enter` plays it in the shape it actually arrives in — the wall knock speeds up,
-the mine bursts, and the tracking tones sweep past you from one side to the
-other. The menu behind it is frozen while it is open, so nothing else is making
-noise. `Escape` goes back.
+the mine burns its fuse down and bursts, and the tracking tones sweep past you
+from one side to the other. The menu behind it is frozen while it is open, so
+nothing else is making noise. `Escape` goes back.
+
+Start with **the eight enemy tones**, which plays all eight enemy voices back to
+back, held in the same place so that only the tone changes. It is the one entry
+that is about the sound playing underneath the whole round rather than about a
+moment in it, and eight timbres are learned by contrast rather than one at a
+time with a fight in between.
 
 It is the fastest way to get the vocabulary below into your ear, and worth ten
 minutes before the first run.
@@ -210,7 +216,7 @@ straight at it. Turn until it is dull and low and you are heading away.
 
 | Tone | Is |
 | --- | --- |
-| Bright pulsing tone | The nearest **enemy**. |
+| Pulsing tone | The nearest **enemy**. There is one per kind of enemy, and they are told apart by how the tone pulses rather than by pitch, since pitch is carrying distance: a seeker plain and steady, a shooter a hollow reed breathing slowly, a headbutter twitching half again as fast, an exploder thin and ticking over quickly, a speed booster high and quick, a tank low and thick and barely pulsing, a spawner slow and beating against itself, a critter thin and skittering. The seeker is the quietest of the eight, because it is the one that is nearly always playing. |
 | Slow, heavy tone | The **elite** of an elite round, wherever it is under the swarm. |
 | Ticking coin | The nearest loose **gold**. |
 | Soft, warm chime | The nearest **healing orb**. |
@@ -224,9 +230,15 @@ them; `F` silences the enemy and elite tones and `C` the pickup tones.
 | --- | --- |
 | Fast, hard rattle | An enemy within touching distance — you are taking damage. |
 | Single ping to one side | A second enemy closing from the opposite side to the one you are tracking. |
-| Buzz | A shot flying towards you. |
-| Fluttering tone | A headbutter winding up to charge at you. |
-| Sharp high tick | A mine, about to burst into a ring of shots. |
+| Falling buzz, repeating faster | A shot flying towards you, closing. Only the nearest shot actually converging on you is sounded. |
+| Short hollow reed | A shooter has planted itself; the first burst of three is about a second behind it. |
+| Rising buzz | A headbutter winding up. |
+| Hard whoosh dropping away | The same headbutter launching itself, two seconds later. |
+| Sharp tick, faster and higher | A mine burning down the two and a half seconds of its fuse. |
+| Noisy thud | The mine bursting into a ring of eight shots. |
+| Low rising swoop | An enemy has been thrown at you — a tank shoving its neighbour, or the forcer elite flinging its escort. |
+| Clean rising shimmer | A speed booster died and everything near it is much faster for three seconds. |
+| High rattle | Critters spilling out: a spawner dying, a swarmer elite eating an escort, or anything that was infested. |
 | Dry wooden knock | The wall you are heading into. Speeds up and rises as you close in; it starts about seven steps out. |
 | Soft low pad on one side | You are running along a wall on that side. |
 | Wobbling tone | A spot where enemies are about to appear, panned to where. |
@@ -303,9 +315,24 @@ anywhere on the shop screen, one line in `engine/init.lua` to shut speech down
 cleanly, and the learn sounds button and its modal in `mainmenu.lua`. Everything
 else is done by wrapping methods at startup, so the game's logic stays untouched.
 The wrapped methods are the tooltip (`InfoText:activate`), the spawn marker,
-enemy projectiles, mines, boss lightning, the snake's wall collision, the end
-of a tutorial run, and the arena and shop methods that mark a round starting,
-ending, being won or lost, cards being dealt, and gold changing hands.
+enemy projectiles, mines, critters, enemy lightning, the snake's wall collision,
+the end of a tutorial run, and the arena and shop methods that mark a round
+starting, ending, being won or lost, cards being dealt, and gold changing hands.
+
+Two of those wrappers earn their keep by being broader than they look.
+`LightningLine` is drawn from an enemy to whatever it is doing something to, and
+nothing else in the game draws lightning from an enemy, so one wrapper covers
+every elite attack, a tank shoving its neighbour and a dying speed booster's
+parting gift. `EnemyCritter` is constructed once per critter, and critters only
+ever arrive in clouds, so the wrapper is how a spawner dying, a swarmer elite
+eating an escort and an infested enemy coming apart all end up making the same
+sound without any of the three knowing about this layer.
+
+Several of those cues are drawn once per target rather than once per action --
+a dying booster throws a line at every enemy in range, and a swarmer's critters
+arrive both as the elite's attack and as five separate critters. They are
+collapsed by `cue_once` in `arena_hud.lua`, which is keyed on the cue rather
+than on the caller, so the callers collapse against each other too.
 
 Tutorial runs are game content rather than part of this layer, so they live in
 `tutorial.lua` at the repository root: the twelve lessons as data, the main-menu

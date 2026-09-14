@@ -58,7 +58,16 @@ local COIN_DULL = {{1, 1}, {2.76, 0.16}}
 local CHIME_DULL = {{1, 1}, {2, 0.20}}
 
 
--- name = { freq, dur, harmonics | partials, decay, damp, noise, gain, tremolo }
+-- The one-shot cues: each one a moment, where the beacons further down are
+-- states.
+--
+-- name = { freq, dur, harmonics | partials, decay, damp, noise, gain, tremolo, sweep }
+--
+-- `sweep` is the ratio the pitch glides to across the cue, and it does most of
+-- the work of keeping these apart from each other and from the held tones. A
+-- beacon cannot glide -- it loops -- so anything that glides is an event, and
+-- which way it goes says what kind of event: a thing winding itself up rises,
+-- a thing arriving falls.
 local CUE_DEFS = {
   -- An enemy somewhere in front of the snake: bright and short.
   enemy_front = {freq = 440, dur = 0.10, harmonics = {1, 0.50, 0.22}, decay = 26, gain = 0.55},
@@ -74,19 +83,63 @@ local CUE_DEFS = {
   gold        = {freq = 1176, dur = 0.30, partials = COIN, damp = 0.50, decay = 13,  gain = 0.42},
   -- A healing orb: a soft chime, left to ring out.
   orb         = {freq = 784,  dur = 0.70, partials = CHIME, damp = 0.40, decay = 4.0, gain = 0.42},
-  -- A shot is on its way towards you: deliberately buzzy, so it cannot be
-  -- confused with an enemy ping even at the edge of hearing.
-  incoming    = {freq = 520, dur = 0.09, harmonics = {1, 0.80, 0.60, 0.45, 0.30}, decay = 34, gain = 0.55},
+  -- A shot is on its way towards you: a buzz that falls as it flies, so it is
+  -- heard as something crossing the arena rather than something sitting in it.
+  incoming    = {freq = 660, dur = 0.14, harmonics = {1, 0.80, 0.60, 0.45, 0.30},
+                 decay = 17, sweep = 0.45, gain = 0.62},
   -- Enemies are about to appear at this spot.
   spawn       = {freq = 330, dur = 0.22, harmonics = {1, 0.60, 0.30}, decay = 9,  gain = 0.60, tremolo = 22},
   -- A hero in the snake just died.
   unit_down   = {freq = 240, dur = 0.28, harmonics = {1, 0.45, 0.2},  decay = 8,  gain = 0.65},
   -- The elite: a slow, heavy pulse that stays audible under the swarm.
   boss        = {freq = 110, dur = 0.30, harmonics = {1, 0.55, 0.30, 0.15}, decay = 7, gain = 0.55},
-  -- A headbutter winding up its charge: a nervous flutter.
-  charge      = {freq = 290, dur = 0.40, harmonics = {1, 0.40, 0.20}, decay = 5,  gain = 0.60, tremolo = 11},
-  -- A mine about to burst into a ring of shots: a sharp high tick.
+
+  -- ---------------------------------------------------------- the specials --
+  --
+  -- Each of the six special enemies does something the plain seeker does not,
+  -- and every one of those somethings used to be either silent or a
+  -- pitch-shifted copy of another one, which is how six enemies that behave
+  -- nothing alike came to sound alike. They are gestures now, and the gestures
+  -- are chosen to separate in the first half of the sound rather than over the
+  -- whole of it, because by the time a cue has finished the thing it was
+  -- warning about has happened.
+
+  -- A headbutter winding itself up: a fast, nervous buzz climbing most of two
+  -- octaves. Its flutter used to sit at 11 a second, a hair off the enemy
+  -- beacon's 10, so a charge arrived sounding like an enemy that had come a
+  -- little closer. It is now far enough clear of it to be a different animal.
+  charge      = {freq = 200, dur = 0.45, harmonics = {1, 0.50, 0.35, 0.20},
+                 decay = 2.2, tremolo = 26, sweep = 2.6, gain = 0.80},
+  -- ...and letting go: a hard gritty whoosh dropping away. The wind-up rises
+  -- and the launch falls, so the two halves of a headbutt cannot be taken for
+  -- each other, or for a second headbutter starting on the first one's tail.
+  butt        = {freq = 620, dur = 0.24, harmonics = {1, 0.55, 0.30},
+                 decay = 8, noise = 0.16, sweep = 0.28, gain = 0.90},
+  -- A shooter planting itself to fire. Odd harmonics only, which is a hollow
+  -- reed rather than a buzz: a woodwind next to the shot instead of a quieter
+  -- version of it. Short, because the shots are a moment behind it.
+  aim         = {freq = 740, dur = 0.13, harmonics = {1, 0, 0.55, 0, 0.30},
+                 decay = 16, sweep = 1.35, gain = 0.62},
+  -- A mine, ticking. Played over and over on an accelerating fuse rather than
+  -- once as it is laid, which is the warning a sighted player gets from
+  -- watching it blink faster.
   mine        = {freq = 980, dur = 0.09, harmonics = {1, 0.30},       decay = 30, gain = 0.50},
+  -- The mine going off: the loudest thing here, because a ring of eight shots
+  -- leaves in every direction at once and there is no steering through it.
+  burst       = {freq = 165, dur = 0.36, harmonics = {1, 0.60, 0.35, 0.20},
+                 decay = 11, noise = 0.55, sweep = 0.55, gain = 0.95},
+  -- Something has been thrown at you: a tank shoving its neighbour, or the
+  -- forcer elite flinging its escorts. Low and rising -- mass, accelerating.
+  shove       = {freq = 130, dur = 0.30, harmonics = {1, 0.45, 0.25},
+                 decay = 5, noise = 0.10, sweep = 2.4, gain = 0.75},
+  -- Enemies have just been sped up. Bright, rising and completely clean:
+  -- nothing new is coming, everything already here got faster.
+  boost       = {freq = 400, dur = 0.30, harmonics = {1, 0.30, 0.15},
+                 decay = 3.5, tremolo = 30, sweep = 2.8, gain = 0.62},
+  -- A spawner or a swarmer elite spilling critters: a high rattle, grainy on
+  -- purpose so it is heard as a number of things rather than as one thing.
+  swarm       = {freq = 520, dur = 0.30, harmonics = {1, 0.40, 0.25},
+                 decay = 6, noise = 0.30, tremolo = 34, gain = 0.70},
 }
 
 
@@ -96,6 +149,13 @@ local function build_mono(def)
   local two_pi = 2 * math.pi
   local seed = 1
   local peak = 0
+  -- A glide is the integral of its frequency, not its frequency times the
+  -- clock: writing sin(2*pi*f(t)*t) for a moving f gives a sound that starts
+  -- right, ends at twice the intended interval and warbles in between. So the
+  -- phase is accumulated one sample at a time. With no sweep the accumulation
+  -- comes to exactly two_pi*freq*t, which is what the fixed-pitch cues had.
+  local phase = 0
+  local sweep = def.sweep
   for i = 0, n - 1 do
     local t = i / RATE
     local v = 0
@@ -110,8 +170,11 @@ local function build_mono(def)
       v = v * math.min(1, t / 0.004)
     else
       for h, amp in ipairs(def.harmonics) do
-        v = v + amp * math.sin(two_pi * def.freq * h * t)
+        -- A zero is how a harmonic is left out, which is how the odd-harmonic
+        -- reed of the shooter's cue is spelled; there is no sine to take.
+        if amp ~= 0 then v = v + amp * math.sin(h * phase) end
       end
+      phase = phase + two_pi * (sweep and (def.freq * sweep ^ (t / def.dur)) or def.freq) / RATE
       if def.noise and def.noise > 0 then
         -- Deterministic LCG: the cue must sound identical every session.
         seed = (seed * 1103515245 + 12345) % 2147483648
@@ -197,13 +260,58 @@ local LAYERS = {'ahead', 'behind'}
 local FADE_IN, FADE_OUT = 0.07, 0.09
 local BEACON_TIMEOUT = 0.15   -- stop calling audio.beacon and the tone fades out
 
--- Sustained  = { freq, harmonics, tremolo, depth, gain }
+-- Sustained  = { freq, harmonics, tremolo, depth, detune, gain }
 -- Struck     = { freq, partials, damp, strikes, strike_decay, attack, gain }
+--
+-- There is one sustained pair per kind of enemy, and telling them apart is the
+-- job of `tremolo` and `depth` far more than of `freq`. Pitch is already
+-- spoken for: it carries distance, and it carries it across a range wide
+-- enough that a far headbutter and a near seeker meet in the middle. Pulse
+-- does not smear that way. A rate of 3 and a rate of 22 stay a rate of 3 and a
+-- rate of 22 from anywhere in the arena, and `depth` -- how far towards
+-- silence each pulse dips -- turns the same rate into a purr or a stutter.
+--
+-- So the six specials are laid out along that axis and read, slowest first, as
+-- a temperament: the tank barely breathing, the spawner turning over, the
+-- seeker plain, the headbutter agitated, the speed booster and the exploder
+-- fretting, the critters skittering. The frequencies then spread them out for
+-- comfort rather than for identity -- a tank sits low because it is heavy, not
+-- because low is how you know it is a tank.
 local LOOP_DEFS = {
-  -- The nearest enemy. Kept plain, because it is the tone that is playing
-  -- almost all of the time.
-  enemy_ahead  = {freq = 440,  harmonics = {1, 0.45, 0.20},       tremolo = 10, gain = 0.34},
-  enemy_behind = {freq = 166,  harmonics = {1, 0.12},             tremolo = 10, gain = 0.34},
+  -- The nearest plain enemy. Kept plain, and kept the quietest of the set,
+  -- because it is the tone that is playing almost all of the time -- and
+  -- because everything else here has to be audible over it.
+  enemy_ahead  = {freq = 440,  harmonics = {1, 0.45, 0.20},       tremolo = 10, gain = 0.22},
+  enemy_behind = {freq = 166,  harmonics = {1, 0.12},             tremolo = 10, gain = 0.22},
+  -- A shooter. Odd harmonics and a slow, deep pulse: a hollow reed breathing,
+  -- which is the same reed its aiming cue is made of.
+  shooter_ahead  = {freq = 620, harmonics = {1, 0, 0.50, 0, 0.28}, tremolo = 6, depth = 0.72, gain = 0.26},
+  shooter_behind = {freq = 233, harmonics = {1, 0, 0.16},          tremolo = 6, depth = 0.72, gain = 0.26},
+  -- A headbutter. Agitated: half again the seeker's rate and pulsing almost to
+  -- silence between beats, so it is heard as something twitching rather than
+  -- something humming. Its charge then goes faster again.
+  headbutter_ahead  = {freq = 494, harmonics = {1, 0.50, 0.35, 0.22}, tremolo = 15, depth = 0.85, gain = 0.32},
+  headbutter_behind = {freq = 185, harmonics = {1, 0.16},             tremolo = 15, depth = 0.85, gain = 0.32},
+  -- A tank. Low, thick with harmonics and barely pulsing at all: the one enemy
+  -- in the game that is a wall rather than a threat, and it sounds like one.
+  tank_ahead  = {freq = 233, harmonics = {1, 0.70, 0.50, 0.35, 0.22}, tremolo = 3.5, depth = 0.30, gain = 0.30},
+  tank_behind = {freq = 87,  harmonics = {1, 0.35, 0.15},             tremolo = 3.5, depth = 0.30, gain = 0.30},
+  -- An exploder. Thin and ticking over fast, which is the fuse it is about to
+  -- become: the mine it leaves behind ticks in the same register.
+  exploder_ahead  = {freq = 392, harmonics = {1, 0.35, 0.15}, tremolo = 22, depth = 0.75, gain = 0.30},
+  exploder_behind = {freq = 147, harmonics = {1, 0.12},       tremolo = 22, depth = 0.75, gain = 0.30},
+  -- A speed booster. High and quick, the sound of the thing it does.
+  speed_booster_ahead  = {freq = 660, harmonics = {1, 0.40, 0.22}, tremolo = 20, depth = 0.55, gain = 0.28},
+  speed_booster_behind = {freq = 247, harmonics = {1, 0.14},       tremolo = 20, depth = 0.55, gain = 0.28},
+  -- A spawner. Slow, and doubled a few cents off itself so the two halves beat
+  -- against each other: one enemy that is audibly already more than one.
+  spawner_ahead  = {freq = 330, harmonics = {1, 0.50, 0.30, 0.18}, tremolo = 5, detune = 1.03, gain = 0.33},
+  spawner_behind = {freq = 124, harmonics = {1, 0.18},             tremolo = 5, detune = 1.03, gain = 0.33},
+  -- A critter. There are never fewer than five of them and they are the least
+  -- dangerous thing in the arena, so this is the thinnest and quietest tone
+  -- here -- fast, papery, and unmistakably not a seeker that has closed in.
+  critter_ahead  = {freq = 700, harmonics = {1, 0.20}, tremolo = 26, depth = 0.80, gain = 0.20},
+  critter_behind = {freq = 262, harmonics = {1, 0.08}, tremolo = 26, depth = 0.80, gain = 0.20},
   -- The elite: slower and heavier, so it stays legible under the enemy tone.
   elite_ahead  = {freq = 220,  harmonics = {1, 0.55, 0.28, 0.12}, tremolo = 4,  gain = 0.32},
   elite_behind = {freq = 110,  harmonics = {1, 0.30, 0.10},       tremolo = 4,  gain = 0.32},
@@ -242,13 +350,23 @@ local function build_sustained(def, n)
   local freq = whole_cycles(def.freq, n)
   local trem = whole_cycles(def.tremolo, n)
   local depth = def.depth or 0.55
+  -- A second copy of the whole tone a few cents off the first. The two beat
+  -- against each other at the difference between them, which is a roughness
+  -- rather than a chord, and it is the one texture here that says "more than
+  -- one of these" without saying anything about pitch or rate. Rounded to
+  -- whole cycles like everything else, so the beat divides into the buffer
+  -- exactly and the loop does not click at the seam.
+  local detune = def.detune and whole_cycles(def.freq * def.detune, n) or nil
   local two_pi = 2 * math.pi
   local buf, peak = {}, 0
   for i = 0, n - 1 do
     local t = i / RATE
     local v = 0
     for h, amp in ipairs(def.harmonics) do
-      v = v + amp * math.sin(two_pi * freq * h * t)
+      if amp ~= 0 then
+        v = v + amp * math.sin(two_pi * freq * h * t)
+        if detune then v = v + amp * math.sin(two_pi * detune * h * t) end
+      end
     end
     -- The pulse rides along with the pitch, so a closing target is heard both
     -- rising and speeding up -- two readings of the same distance.

@@ -99,21 +99,49 @@ The nearest one holds the enemy tone, so keep it dull and behind you and let
 your heroes shoot it. A hard fast rattle over the top of that tone means an
 enemy is touching you and taking a hero's health. A single ping to one side
 while the tone is on the other means a second enemy is closing from there and
-you are about to be pinched. A buzz is a shot flying towards you; steer sideways
-to let it pass.
+you are about to be pinched. A falling buzz, repeating faster as it comes, is a
+shot flying towards you; steer sideways to let it pass.
 
 ## Special enemies
 
-Special enemies are announced when they arrive.
+There are eight kinds of enemy, and **the enemy tone tells you which one is
+nearest**, because each kind holds a tone of its own. They differ in how fast
+and how deeply the tone pulses rather than in pitch, because pitch is already
+carrying distance:
 
-- **Speed boosters** make nearby enemies faster.
-- **Exploders** leave a mine when they die; a mine is announced with a tick and
-  bursts into a ring of shots a moment later.
-- **Headbutters** wind up with a fluttering tone and then charge at you; steer
-  sideways.
-- **Tanks** are slow and hard to kill.
-- **Shooters** stop and fire bursts.
-- **Spawners** burst into critters when killed.
+| Kind | Its tone |
+| --- | --- |
+| Seeker | Plain and steady. The quietest of the eight — everything else sounds busier than this. |
+| Shooter | A hollow reed, breathing slowly. |
+| Headbutter | Twitching, half again as fast as a seeker, almost cutting out between beats. |
+| Exploder | Thin, ticking over quickly: the fuse it is about to become. |
+| Speed booster | High and quick. |
+| Tank | Low, thick, and barely pulsing at all. |
+| Spawner | Slow, and doubled a few cents off itself so the two halves beat against each other. |
+| Critter | Thin and skittering, and quieter again than a seeker. |
+
+The **learn sounds** screen plays all eight back to back under *the eight enemy
+tones*, which is the fastest way to get them into your ear.
+
+On top of its tone, each special enemy has a sound for the thing it does, and
+each one is announced in words as well.
+
+- **Shooters** plant themselves with a short hollow reed and fire a burst of
+  three about a second later. Once stopped they never move again, so they are
+  the one enemy you can safely leave until last.
+- **Headbutters** wind up with a rising buzz, then launch in a straight line on
+  a hard whoosh dropping away. The two seconds between those two sounds are the
+  dodge: steer sideways, not away.
+- **Exploders** leave a mine when they die. It ticks faster and higher for two
+  and a half seconds and then thuds into a ring of eight shots thrown out in
+  every direction. Be travelling away from the ticking before it finishes.
+- **Tanks** are slow and hard to kill, and every few seconds throw the enemy
+  next to them at you — a low rising swoop, and then something arriving much
+  faster than it was walking.
+- **Speed boosters** die in a clean rising shimmer, and everything near them
+  moves at three times its speed for the next few seconds.
+- **Spawners** die in a high rattle and leave five to eight critters, which
+  ordinary shots pass straight through.
 
 The main menu's **tutorial runs** screen fights each of these on its own, one
 short run per enemy, after explaining what it does.
@@ -275,10 +303,24 @@ bright in front of you and dull behind, rising and pulsing faster as they close:
 
 | Tone | Is |
 | --- | --- |
-| Bright pulsing tone | The nearest **enemy**. |
+| Pulsing tone | The nearest **enemy**, in one of eight flavours — see below. |
 | Slow, heavy tone | The **elite** of an elite round, wherever it is under the swarm. |
 | Ticking coin | The nearest loose **gold**. |
 | Soft, warm chime | The nearest **healing orb**. |
+
+The enemy tone comes in one flavour per kind of enemy, and they differ in how
+the tone pulses rather than in pitch, because pitch is carrying distance:
+
+| Pulse | Is |
+| --- | --- |
+| Plain and steady, and the quietest of the eight | A **seeker**, the ordinary enemy. |
+| A hollow reed, breathing slowly | A **shooter**. |
+| Twitching, half again as fast, almost cutting out between beats | A **headbutter**. |
+| Thin and ticking over quickly | An **exploder**. |
+| High and quick | A **speed booster**. |
+| Low, thick, barely pulsing | A **tank**. |
+| Slow, and beating against itself | A **spawner**. |
+| Thin and skittering, quieter again | A **critter**. |
 
 Everything else happens once:
 
@@ -286,9 +328,15 @@ Everything else happens once:
 | --- | --- |
 | Fast, hard rattle | An enemy within touching distance — you are taking damage. |
 | Single ping to one side | A second enemy closing from the opposite side to the one you are tracking. |
-| Buzz | A shot flying towards you. |
-| Fluttering tone | A headbutter winding up to charge at you. |
-| Sharp high tick | A mine, about to burst into a ring of shots. |
+| Falling buzz, repeating faster | A shot flying towards you, closing. |
+| Short hollow reed | A shooter has planted itself and will fire in about a second. |
+| Rising buzz | A headbutter winding up to charge at you. Two seconds later it goes. |
+| Hard whoosh dropping away | A headbutter launching itself. |
+| Sharp tick, faster and higher | A mine burning its fuse down. |
+| Noisy thud | The mine bursting into a ring of shots. |
+| Low rising swoop | An enemy has been thrown at you, by a tank or by the forcer elite. |
+| Clean rising shimmer | Enemies near a dying speed booster just got much faster. |
+| High rattle | Critters spilling out of a spawner, or out of a swarmer elite's escort. |
 | Dry wooden knock | The wall you are heading into, faster and higher as you close in. |
 | Soft low pad on one side | You are running along a wall on that side. |
 | Wobbling tone | A spot where enemies are about to appear, panned to where. |
