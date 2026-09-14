@@ -2082,14 +2082,6 @@ function ClassIcon:die(dont_spawn_effect)
     self.info_text.dead = true
     self.info_text = nil
   end
-
-  if self.selected and not self.parent:is(ShopCard) then
-    for _, character in ipairs(self.parent.characters) do
-      if table.any(character.classes, function(v) return v == self.class end) then
-        character:highlight()
-      end
-    end
-  end
 end
 
 
