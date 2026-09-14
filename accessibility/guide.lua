@@ -88,6 +88,7 @@ function guide.speak(st)
   for _, key in ipairs(guide.MECHANICS) do add(T(key)) end
   if st and st.in_tutorial then add(T('a11y.guide.screen_keys')) end
 
-  access.say(parts[1], {interrupt = true, priority = true})
-  for i = 2, #parts do access.say(parts[i], {interrupt = false, priority = true}) end
+  -- One paragraph per line of the review buffer, so a player can step back to
+  -- the paragraph they missed rather than hear the whole guide again.
+  access.say_lines(parts, {interrupt = true, priority = true})
 end

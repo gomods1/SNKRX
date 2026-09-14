@@ -945,6 +945,9 @@ return {
 
   ['a11y.nothing_to_repeat'] = 'no hay nada que repetir',
   ['a11y.no_messages'] = 'todavía no hay mensajes',
+  ['a11y.buffer.empty'] = 'todavía no hay nada que revisar',
+  ['a11y.buffer.first'] = 'principio del texto',
+  ['a11y.buffer.last'] = 'final del texto',
   ['a11y.resumed'] = 'reanudado',
   ['a11y.guide_closed'] = 'guía cerrada',
   ['a11y.credits_closed'] = 'créditos cerrados',
@@ -1192,13 +1195,13 @@ return {
   ['a11y.guide.the_shop'] = 'La tienda. Sus controles están reunidos en grupos: las tres cartas a la venta, tu equipo, los iconos de clase, tus objetos, los controles de la tienda y el botón de empezar. Tab y mayúsculas tab pasan al grupo siguiente y anterior y lo nombran al llegar, y las flechas se mueven dentro del grupo en el que estás, diciendo en qué posición estás y dando la vuelta al llegar a los extremos. Inicio y fin saltan al primer y al último control de la pantalla. Todos los demás menús del juego están agrupados igual. 1, 2 y 3 compran una carta, R renueva la tienda por 2 de oro, retroceso vende el miembro del equipo o el objeto en el que estás, mayúsculas retroceso vende una copia sobrante, y avanzar y retroceder página mueven a un miembro del equipo adelante o atrás en la serpiente. Enter sobre el nivel de la tienda compra experiencia por 5 de oro; los niveles de tienda más altos ofrecen héroes más raros. Fijar conserva las mismas tres cartas para la próxima ronda. G empieza la ronda.',
   ['a11y.guide.learn_sounds'] = 'Aprender los sonidos. El menú principal tiene una pantalla de aprender sonidos: todos los sonidos del juego en una lista, cada uno con su descripción, y enter lo reproduce tal como llega en la arena. Es la forma más rápida de meterte todo esto en el oído.',
   ['a11y.guide.learn_enemies'] = 'Aprender los enemigos. Al lado, entrenamiento son doce combates cortos, uno por tipo de enemigo, en el orden en que los encuentras. Elegir uno lee en voz alta lo que hace ese enemigo y cómo responderle, y enter te deja en una arena pequeña que no contiene más que ese enemigo y un héroe. Una partida dura de diez a treinta segundos, morir solo te cuesta el reintento, y superar una la marca como hecha y te ofrece la siguiente.',
-  ['a11y.guide.f1'] = 'Pulsa F1 en cualquier momento para la lista completa de teclas, y M para volver a oír el último mensaje.',
+  ['a11y.guide.f1'] = 'Pulsa F1 en cualquier momento para la lista completa de teclas, y M para volver a oír el último mensaje. Un control dice solo su nombre; control flecha arriba y control flecha abajo leen su descripción, o esta guía, de una línea en una.',
   ['a11y.guide.screen_keys'] = 'Tab cambia entre los dos diagramas de ejemplo y el botón de cerrar, y las flechas leen las casillas del que tengas seleccionado. Escape cierra la guía.',
 
   -- ---------------------------------------------------------------- help --
 
   ['a11y.help.title'] = 'Teclas de accesibilidad.',
-  ['a11y.help.anywhere'] = 'En cualquier sitio: F1 esta ayuda. F2 accesibilidad activada o desactivada. F3 voz activada o desactivada. F4 volumen de señales. F5 la guía del juego. M repite el último mensaje. La coma y el punto retroceden y avanzan por todo lo que se ha dicho.',
+  ['a11y.help.anywhere'] = 'En cualquier sitio: F1 esta ayuda. F2 accesibilidad activada o desactivada. F3 voz activada o desactivada. F4 volumen de señales. F5 la guía del juego. M repite el último mensaje. La coma y el punto retroceden y avanzan por todo lo que se ha dicho. Un control dice solo su nombre; control flecha arriba y control flecha abajo leen su descripción de una línea en una, y recorren igual un informe o la guía.',
   ['a11y.help.menus'] = 'Menús y tienda: los controles están reunidos en grupos, y el grupo se nombra al entrar en él. Tab y mayúsculas tab pasan al grupo siguiente y anterior, y las flechas se mueven dentro del grupo en el que estás, dando la vuelta al llegar a los extremos. Inicio y fin saltan al primer y al último control de la pantalla, enter o espacio eligen, y retroceso es la acción secundaria, como vender. Cuando las flechas están gobernando la serpiente, tab mueve de un control en un control.',
   ['a11y.help.main_menu'] = 'Menú principal: aprender sonidos abre una lista de todos los sonidos del juego, con una descripción de cada uno y enter para oírlo. Entrenamiento abre una lista de todos los enemigos, cada uno explicado y luego combatido a solas en una partida corta propia; escape retrocede paso a paso y R repite una partida que hayas perdido.',
   ['a11y.help.shop'] = 'Solo en la tienda: 1, 2 y 3 compran una carta, R renueva la tienda, G empieza la ronda, avanzar y retroceder página mueven al miembro del equipo seleccionado adelante o atrás en la serpiente, mayúsculas retroceso vende una copia sobrante del héroe seleccionado. Q lee la ronda y el oro, H lee el equipo e Y lee tu equipo completo.',

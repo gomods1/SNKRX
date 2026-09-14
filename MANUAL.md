@@ -219,7 +219,9 @@ and clearing one marks it done in your save and offers the next. Inside a run,
 **F5** reads the explanation again.
 
 Press **F1** at any time for the full key list, and **M** to hear the last
-message again.
+message again. A control announces only its name; its full description, such as
+a hero's, waits a line at a time under **Ctrl+Up** and **Ctrl+Down**, which also
+step through a report or this guide after it has been read.
 
 # Key reference
 
@@ -236,6 +238,7 @@ The guide points at F1 for the keys; in a written manual, here they are.
 | `F5` | This guide, spoken |
 | `M` | Repeat the last thing that was said |
 | `,` / `.` | Step back / forward through the last 40 messages |
+| `Ctrl+Up` / `Ctrl+Down` | Next / previous line of the last long description |
 | `Escape` | Options (or close the guide / credits) |
 
 ## Menus, shop and card screens

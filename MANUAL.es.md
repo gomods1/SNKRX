@@ -232,7 +232,9 @@ a intentarlo — y superar una la marca como hecha en tu partida guardada y te
 ofrece la siguiente. Dentro de una partida, **F5** vuelve a leer la explicación.
 
 Pulsa **F1** en cualquier momento para la lista completa de teclas, y **M** para
-volver a oír el último mensaje.
+volver a oír el último mensaje. Un control anuncia solo su nombre; su descripción
+completa, como la de un héroe, espera línea a línea bajo **Ctrl+Arriba** y
+**Ctrl+Abajo**, que también recorren un informe o esta guía después de leerlos.
 
 # Referencia de teclas
 
@@ -249,6 +251,7 @@ La guía te manda a F1 para las teclas; en un manual escrito, aquí están.
 | `F5` | Esta guía, hablada |
 | `M` | Repetir lo último que se ha dicho |
 | `,` / `.` | Retroceder / avanzar por los últimos 40 mensajes |
+| `Ctrl+Arriba` / `Ctrl+Abajo` | Línea siguiente / anterior de la última descripción larga |
 | `Escape` | Opciones (o cerrar la guía / los créditos) |
 
 ## Menús, tienda y pantallas de cartas

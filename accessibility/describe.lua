@@ -5,10 +5,9 @@
 --   2. Naming things: UI widgets, directions, distances, positions, enemies.
 --
 -- Every focusable widget returns a short label plus an optional longer detail.
--- The label is spoken immediately and interrupts; the detail is queued behind
--- it, so a player skimming with Tab hears only the labels while a player who
--- pauses hears the full description. That is how screen readers behave
--- elsewhere and it is what makes fast navigation bearable.
+-- The label is spoken when the widget takes focus; the detail is not spoken
+-- but kept in the review buffer, where ctrl up reads it a line at a time. So
+-- browsing is only ever names, and the full description is one key away.
 
 local describe = {}
 access.describe = describe
@@ -60,17 +59,24 @@ end
 
 
 -- InfoText and Text objects are built from a list of {text = ..., font = ...}
--- lines. Join them into one utterance, separated so the voice breathes.
-function describe.lines(text_data)
-  if type(text_data) ~= 'table' then return '' end
+-- lines. One spoken line per line of the tooltip, which is also one line of
+-- the review buffer: the game already writes them one idea to a line.
+function describe.line_list(text_data)
   local parts = {}
+  if type(text_data) ~= 'table' then return parts end
   for _, line in ipairs(text_data) do
     local s = describe.speech(line.text or '')
     -- Lines that already end in punctuation must not gain a second full stop.
     s = s:gsub('[%.,;:]+$', '')
     if s ~= '' then table.insert(parts, s) end
   end
-  return table.concat(parts, '. ')
+  return parts
+end
+
+
+-- The same, joined into one utterance, separated so the voice breathes.
+function describe.lines(text_data)
+  return table.concat(describe.line_list(text_data), '. ')
 end
 
 
@@ -202,7 +208,10 @@ function describe.classes_of(character)
 end
 
 
-function describe.character_detail(character, level)
+-- Everything there is to say about a hero, one line per idea: name, level and
+-- tier; classes; what it does; its level 3 effect. The lines are what the
+-- review buffer steps through; character_detail is the same read in one go.
+function describe.character_lines(character, level)
   local parts = {}
   local tier = character_tiers and character_tiers[character]
   table.insert(parts, describe.character(character, level) ..
@@ -225,7 +234,12 @@ function describe.character_detail(character, level)
     end
     table.insert(parts, line)
   end
-  return table.concat(parts, '. ')
+  return parts
+end
+
+
+function describe.character_detail(character, level)
+  return table.concat(describe.character_lines(character, level), '. ')
 end
 
 
@@ -328,9 +342,10 @@ function describe.is_link(o)
 end
 
 
--- Returns label, detail. The label is spoken first and interrupts whatever was
--- being said; the detail is queued behind it and is skipped if the player
--- keeps moving.
+-- Returns label, detail. The label is spoken and interrupts whatever was being
+-- said; the detail is not spoken but goes into the review buffer, which ctrl
+-- up steps through. It may be a list of lines, one per step, or a plain
+-- string, which is a single line.
 function describe.focusable(o)
   if not o then return nil end
 
@@ -346,7 +361,7 @@ function describe.focusable(o)
     local classes = describe.classes_of(o.unit)
     if classes ~= '' then label = label .. ', ' .. classes end
     -- The shop card has no hover tooltip of its own, so spell it out here.
-    return label, describe.character_detail(o.unit, 1)
+    return label, describe.character_lines(o.unit, 1)
   end
 
   if is(o, 'CharacterIcon') then
@@ -409,7 +424,7 @@ function describe.focusable(o)
   end
 
   -- Item and passive cards both raise a hover tooltip carrying the full rules
-  -- text, which the InfoText hook speaks. Naming them twice is just noise, so
+  -- text, which the InfoText hook puts in the review buffer. Naming them twice is just noise, so
   -- these deliberately return a label and no detail.
   if is(o, 'ItemCard') then
     local label = T('a11y.name_level', describe.passive_name(o.passive), o.level)

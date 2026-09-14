@@ -400,8 +400,16 @@ function nav.speak_focus(interrupt)
   if group and group.last > group.first then
     position = ', ' .. T('a11y.nav.position', nav.index - group.first + 1, group.last - group.first + 1)
   end
-  access.say(prefix .. label .. position, {interrupt = interrupt ~= false})
-  if detail then access.say(detail, {interrupt = false}) end
+  -- Only the name is spoken. The detail goes into the review buffer behind it,
+  -- so ctrl up from a control's name walks into its description and nothing
+  -- is read that was not asked for.
+  local lines = {prefix .. label .. position}
+  if type(detail) == 'table' then
+    for _, line in ipairs(detail) do table.insert(lines, line) end
+  elseif detail then
+    table.insert(lines, detail)
+  end
+  access.say_lines(lines, {interrupt = interrupt ~= false, first_only = true})
 end
 
 

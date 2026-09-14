@@ -934,6 +934,9 @@ return {
 
   ['a11y.nothing_to_repeat'] = 'nothing to repeat',
   ['a11y.no_messages'] = 'no messages yet',
+  ['a11y.buffer.empty'] = 'nothing to review yet',
+  ['a11y.buffer.first'] = 'start of text',
+  ['a11y.buffer.last'] = 'end of text',
   ['a11y.resumed'] = 'resumed',
   ['a11y.guide_closed'] = 'guide closed',
   ['a11y.credits_closed'] = 'credits closed',
@@ -1183,13 +1186,13 @@ return {
   ['a11y.guide.the_shop'] = 'The shop. Its controls are gathered into groups: the three cards for sale, your party, the class icons, your items, the shop controls and the go button. Tab and shift tab move to the next and previous group and name it as you arrive, and the arrow keys move within the group you are in, saying where you are in it and wrapping round at its ends. Home and end jump to the first and last control on the screen. Every other menu in the game is grouped the same way. 1, 2 and 3 buy a card, R rerolls the shop for 2 gold, backspace sells the party member or item you are on, shift backspace sells one spare copy, and page up and page down move a party member forward or back in the snake. Enter on the shop level buys experience for 5 gold; higher shop levels offer rarer heroes. Lock keeps the same three cards for next round. G starts the round.',
   ['a11y.guide.learn_sounds'] = 'Learning the sounds. The main menu has a learn sounds screen: every sound in the game in a list, each with a description, and enter plays it the way it arrives in the arena. It is the quickest way to get all of this into your ear.',
   ['a11y.guide.learn_enemies'] = 'Learning the enemies. Next to it, tutorial runs is twelve short fights, one per enemy type, in the order you meet them. Picking one reads out what that enemy does and how to answer it, and enter then drops you into a small arena holding nothing but that enemy and one hero. A run takes ten to thirty seconds, dying only costs you the retry, and clearing one marks it done and offers the next.',
-  ['a11y.guide.f1'] = 'Press F1 at any time for the full key list, and M to hear the last message again.',
+  ['a11y.guide.f1'] = 'Press F1 at any time for the full key list, and M to hear the last message again. A control says only its name; control up and control down read its description, or this guide, one line at a time.',
   ['a11y.guide.screen_keys'] = 'Tab moves between the two example diagrams and the close button, and the arrow keys read the tiles of the one you are on. Escape closes the guide.',
 
   -- ---------------------------------------------------------------- help --
 
   ['a11y.help.title'] = 'Accessibility keys.',
-  ['a11y.help.anywhere'] = 'Anywhere: F1 this help. F2 accessibility off or on. F3 speech on or off. F4 cue volume. F5 the game guide. M repeats the last message. Comma and full stop step back and forward through everything that has been said.',
+  ['a11y.help.anywhere'] = 'Anywhere: F1 this help. F2 accessibility off or on. F3 speech on or off. F4 cue volume. F5 the game guide. M repeats the last message. Comma and full stop step back and forward through everything that has been said. A control says only its name; control up and control down read its description one line at a time, and step through a report or the guide the same way.',
   ['a11y.help.menus'] = 'Menus and shop: controls are gathered into groups, and the group is named as you enter it. Tab and shift tab move to the next and previous group, and the arrow keys move within the group you are in, wrapping round at its ends. Home and end jump to the first and last control on the screen, enter or space chooses, and backspace is the secondary action such as selling. Where the arrow keys are steering the snake, tab moves one control at a time instead.',
   ['a11y.help.main_menu'] = 'Main menu: learn sounds opens a list of every sound in the game, with a description of each one and enter to hear it. Tutorial runs opens a list of every enemy, each one explained and then fought on its own in a short run of its own; escape backs out one step at a time and R repeats a run you lost.',
   ['a11y.help.shop'] = 'Shop only: 1, 2 and 3 buy a card, R rerolls the shop, G starts the round, page up and page down move the selected party member forward or back in the snake, shift backspace sells one spare copy of the selected hero. Q reads the round and gold, H reads the party, Y reads your build.',

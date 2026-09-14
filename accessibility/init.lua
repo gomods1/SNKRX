@@ -45,6 +45,7 @@ local first_announcement = true
 -- opts.interrupt  cut off whatever is being spoken (default true)
 -- opts.priority   speak even if an identical line was just said
 -- opts.repeat_after  seconds before an identical line may repeat (default 1.2)
+-- opts.record     keep the line in the message history (default true)
 function access.say(text, opts)
   if not access.enabled then return end
   if not text or text == '' then return end
@@ -59,14 +60,96 @@ function access.say(text, opts)
   end
   last_text, last_time = text, now
 
-  access.last_message = text
-  table.insert(access.history, text)
-  if #access.history > 40 then table.remove(access.history, 1) end
-  access.history_index = nil
+  if opts.record ~= false then access.remember(text) end
 
   if access.speech_enabled then
     access.tts.speak(text, opts.interrupt ~= false)
   end
+end
+
+
+function access.remember(text)
+  access.last_message = text
+  table.insert(access.history, text)
+  if #access.history > 40 then table.remove(access.history, 1) end
+  access.history_index = nil
+end
+
+
+-- ------------------------------------------------------------------ buffer --
+
+-- A hero card, a party member or a class icon has a paragraph to say about
+-- itself, and a screen reader offers no way back into the middle of a paragraph
+-- once it has started: the choice is to sit through it or to hear it all again
+-- from the top. The buffer keeps the last such description as separate lines,
+-- one idea to a line, and ctrl up and ctrl down walk through it.
+--
+-- A control that takes focus says only its first line, its name, and leaves
+-- the rest in the buffer to be read on request. A report or the guide, which
+-- the player asked for outright, is read in full and buffered as well, so a
+-- paragraph that went past can be stepped back to.
+access.buffer = {lines = {}, index = 0, time = -100}
+
+-- opts are access.say's, applied to the first line; the rest are queued behind
+-- it, or with opts.first_only left unspoken in the buffer.
+-- opts.append adds to the buffer instead of replacing it, for a tooltip that
+-- arrives a frame after the control it belongs to was announced.
+function access.say_lines(lines, opts)
+  if not access.enabled then return end
+  opts = opts or {}
+  local spoken = {}
+  for _, line in ipairs(lines or {}) do
+    local s = describe.speech(line)
+    if s ~= '' then table.insert(spoken, s) end
+  end
+  if #spoken == 0 then return end
+
+  if opts.append and #access.buffer.lines > 0 then
+    for _, s in ipairs(spoken) do table.insert(access.buffer.lines, s) end
+    -- The control's name has already been said; the tooltip is the rest of
+    -- its description and waits in the buffer like the rest.
+    if opts.first_only then return end
+  else
+    access.buffer.lines = spoken
+    access.buffer.index = 1
+    access.buffer.time = love.timer.getTime()
+  end
+
+  -- One history entry for the whole description, so that comma and full stop
+  -- still step through things that were said rather than through their lines.
+  access.say(spoken[1], {interrupt = opts.interrupt, priority = opts.priority,
+    repeat_after = opts.repeat_after, record = false})
+  if opts.first_only then
+    access.remember(spoken[1])
+    return
+  end
+  for i = 2, #spoken do access.say(spoken[i], {interrupt = false, priority = true, record = false}) end
+  access.remember(table.concat(spoken, '. '))
+end
+
+
+-- True while the last description is fresh enough that a tooltip arriving now
+-- is about the same thing. The pointer is warped onto a control the frame it
+-- takes focus and the engine raises its tooltip on the next, so this is
+-- generous; anything later is a message in its own right.
+function access.buffer_fresh()
+  return (love.timer.getTime() - access.buffer.time) < 1
+end
+
+
+function access.buffer_step(delta)
+  local b = access.buffer
+  local n = #b.lines
+  if n == 0 then
+    access.tts.speak(T('a11y.buffer.empty'), true)
+    return
+  end
+  local i = b.index + delta
+  local edge = nil
+  if i < 1 then i, edge = 1, T('a11y.buffer.first')
+  elseif i > n then i, edge = n, T('a11y.buffer.last') end
+  b.index = i
+  access.tts.speak((edge and (edge .. '. ') or '') .. b.lines[i], true)
 end
 
 
@@ -143,7 +226,8 @@ access.save_settings = save_settings
 
 -- ------------------------------------------------------------ shop helpers --
 
--- The three cards for sale, numbered the way the buy keys are.
+-- The three cards for sale, numbered the way the buy keys are. Returns the
+-- lines for the buffer: the heading, then one card per line.
 local function describe_cards(st)
   local cards = {}
   for i = 1, 3 do
@@ -154,8 +238,10 @@ local function describe_cards(st)
       table.insert(cards, line .. ', ' .. describe.classes_of(card.unit))
     end
   end
-  if #cards == 0 then return T('a11y.shop.nothing_for_sale') end
-  return T('a11y.shop.for_sale', table.concat(cards, '. '))
+  if #cards == 0 then return {T('a11y.shop.nothing_for_sale')} end
+  local lines = {T('a11y.shop.for_sale', cards[1])}
+  for i = 2, #cards do table.insert(lines, cards[i]) end
+  return lines
 end
 
 
@@ -169,12 +255,13 @@ local function describe_shop(st)
   table.insert(parts, T('a11y.shop.party', #(st.units or {}), max_units))
   table.insert(parts, T('a11y.shop.level', st.shop_level))
   if st.locked then table.insert(parts, T('a11y.shop.locked')) end
-  local summary = table.concat(parts, ', ') .. '. ' .. describe_cards(st)
-  summary = summary .. ' ' .. T('a11y.shop.keys')
+  local lines = {table.concat(parts, ', ')}
+  for _, line in ipairs(describe_cards(st)) do table.insert(lines, line) end
+  table.insert(lines, T('a11y.shop.keys'))
   if #(st.units or {}) == 0 then
-    summary = summary .. ' ' .. T('a11y.shop.empty_party')
+    table.insert(lines, T('a11y.shop.empty_party'))
   end
-  return summary
+  return lines
 end
 
 
@@ -226,8 +313,12 @@ local function install_hooks()
   InfoText.activate = function(self, text, ...)
     local result = activate(self, text, ...)
     if access.enabled then
-      local spoken = describe.lines(text)
-      if spoken ~= '' then access.say(spoken, {interrupt = false}) end
+      -- A tooltip raised the frame after a control took focus is the rest of
+      -- that control's description: its lines join the control's buffer and
+      -- are not spoken. One raised on its own, like "not enough gold", is a
+      -- message and is read out.
+      local fresh = access.buffer_fresh()
+      access.say_lines(describe.line_list(text), {interrupt = false, append = fresh, first_only = fresh})
     end
     return result
   end
@@ -393,7 +484,9 @@ local function install_hooks()
   BuyScreen.set_cards = function(self, shop_level, dont_spawn_effect, first_call)
     local result = set_cards(self, shop_level, dont_spawn_effect, first_call)
     if access.enabled and not first_call then
-      access.say(T('a11y.shop.rerolled') .. ' ' .. describe_cards(self), {interrupt = true, priority = true})
+      local lines = describe_cards(self)
+      lines[1] = T('a11y.shop.rerolled') .. ' ' .. lines[1]
+      access.say_lines(lines, {interrupt = true, priority = true})
     end
     return result
   end
@@ -455,7 +548,9 @@ local function announce_screen(st, previous)
     -- Coming out of a fight, the round's gold breakdown may still be being
     -- read; queue behind it rather than cut it off.
     local from_arena = previous and previous.is and previous:is(Arena)
-    access.say(prefix .. describe_shop(st), {interrupt = not from_arena})
+    local lines = describe_shop(st)
+    lines[1] = prefix .. lines[1]
+    access.say_lines(lines, {interrupt = not from_arena})
   elseif prefix ~= '' then
     access.say(prefix .. T('a11y.press_f1'), {interrupt = true})
   end
@@ -564,8 +659,9 @@ local HELP = {
 }
 
 function access.help()
-  access.say(T(HELP[1]), {interrupt = true, priority = true})
-  for i = 2, #HELP do access.say(T(HELP[i]), {interrupt = false, priority = true}) end
+  local lines = {}
+  for i, key in ipairs(HELP) do lines[i] = T(key) end
+  access.say_lines(lines, {interrupt = true, priority = true})
 end
 
 
@@ -574,6 +670,11 @@ end
 local function pressed(key)
   local action = input[key]
   return action and action.pressed
+end
+
+local function down(key)
+  local action = input[key]
+  return action and action.down
 end
 
 
@@ -667,6 +768,12 @@ local function handle_hotkeys()
   if pressed('m') then access.repeat_last() return true end
   if pressed(',') then access.history_step(-1) return true end
   if pressed('.') then access.history_step(1) return true end
+
+  -- Checked ahead of the navigation, which would otherwise take the arrow as
+  -- a move; the arena leaves up and down unused, so this works there too.
+  local ctrl = down('lctrl') or down('rctrl')
+  if ctrl and pressed('up') then access.buffer_step(1) return true end
+  if ctrl and pressed('down') then access.buffer_step(-1) return true end
 
   if pressed('f') then
     access.hud.sonar_enemies = toggle_setting(access.hud.sonar_enemies, T('a11y.toggle.enemy_sonar'))

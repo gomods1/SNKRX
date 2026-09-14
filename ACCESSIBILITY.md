@@ -54,6 +54,7 @@ speech is silent, and a note explaining why is printed to the console.
 | `F5` | The game guide: what the game is, and how to play it by ear |
 | `M` | Repeat the last thing that was said |
 | `,` / `.` | Step back / forward through the last 40 messages |
+| `Ctrl+Up` / `Ctrl+Down` | Next / previous line of the last long description, one idea at a time |
 | `Escape` | Options (or close the guide / credits) |
 
 ### Menus, shop and card screens
@@ -66,10 +67,37 @@ speech is silent, and a note explaining why is printed to the console.
 | `Enter` or `Space` | Activate |
 | `Backspace` or `Delete` | Secondary action — sell a hero or item, step a setting backwards |
 
-Each control announces itself, then its full description. Skipping on cuts the
-description off, so browsing fast stays fast. Opening the guide, the options or a
-card screen never moves your focus: when you come back, you are where you left
-off.
+Each control announces only its name, so browsing is fast and quiet. Its full
+description waits in the review buffer, one key away. Opening the guide, the
+options or a card screen never moves your focus: when you come back, you are
+where you left off.
+
+#### The review buffer
+
+A hero has a paragraph to say about itself, and a screen reader offers no way
+back into the middle of a paragraph once it has started. So a control's
+description is never read out on its own: it is kept as a **review buffer**,
+one idea to a line, and **Ctrl+Up** and **Ctrl+Down** step forward and back
+through it, without moving your focus. The first line is the one you heard
+when the control took focus. The ends say "start of text" and "end of text".
+
+A shop card, for example:
+
+1. Cleric, 1 gold, Healer, 2 of 3 — spoken when the card takes focus
+2. Cleric level 1, tier 1
+3. Classes: Healer
+4. What the hero does
+5. Its level 3 effect
+6. Healer, in your party: 0 — the class bonus, from the card's class icon
+7. What the healer bonus does at 2 and at 4 healers
+
+Party members, class icons, items and item choices work the same way: the name
+on focus, everything else under Ctrl+Up.
+
+Things you ask for outright are still read in full, and buffered as well so a
+line that went past can be stepped back to: the shop summary and the three
+cards on offer, the party and build reports (`H` and `Y`), the key list (`F1`)
+and the guide (`F5`), where each paragraph is a line.
 
 #### Groups
 
@@ -299,7 +327,7 @@ The layer lives in `accessibility/` and is deliberately self-contained:
 
 | File | Responsibility |
 | --- | --- |
-| `init.lua` | Settings, speech queue, hotkeys, and the wrappers that hook the game |
+| `init.lua` | Settings, speech queue, the review buffer, hotkeys, and the wrappers that hook the game |
 | `prism.lua` | LuaJIT FFI binding to the Prism speech library |
 | `audio.lua` | Procedural stereo cues and the tracking beacons |
 | `describe.lua` | Turning the game's markup and jargon into speech, and naming widgets and enemies |

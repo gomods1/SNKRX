@@ -1153,7 +1153,8 @@ function hud.report_party()
       for i, u in ipairs(units) do
         table.insert(parts, i .. ', ' .. describe.character(u.character, u.level))
       end
-      access.say(T('a11y.report.party_head_first', table.concat(parts, '. ')), {interrupt = true})
+      parts[1] = T('a11y.report.party_head_first', parts[1])
+      access.say_lines(parts, {interrupt = true})
     else
       access.say(T('a11y.report.no_party'), {interrupt = true})
     end
@@ -1170,7 +1171,7 @@ function hud.report_party()
   if #parts == 0 then
     access.say(T('a11y.report.no_heroes_left'), {interrupt = true})
   else
-    access.say(table.concat(parts, '. '), {interrupt = true})
+    access.say_lines(parts, {interrupt = true})
   end
 end
 
@@ -1214,5 +1215,6 @@ function hud.report_build()
     table.insert(parts, describe.count(#items, 'a11y.items') .. ': ' .. table.concat(items, ', '))
   end
 
-  access.say(table.concat(parts, '. '), {interrupt = true})
+  -- Heroes, class bonuses and items are one line each in the review buffer.
+  access.say_lines(parts, {interrupt = true})
 end

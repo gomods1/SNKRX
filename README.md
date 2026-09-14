@@ -15,8 +15,9 @@ https://user-images.githubusercontent.com/409773/119258159-ea982b00-bb9e-11eb-80
 
 SNKRX is fully playable without sight: menus and the shop are keyboard
 navigable and spoken through your screen reader, and the arena is narrated by
-panned audio cues. It is on by default; press `F1` in game for the key list, or
-see [ACCESSIBILITY.md](ACCESSIBILITY.md).
+panned audio cues. Controls announce only their name; the full description,
+such as a hero's, is read a line at a time with `Ctrl+Up` and `Ctrl+Down`. It is on by default; press `F1` in
+game for the key list, or see [ACCESSIBILITY.md](ACCESSIBILITY.md).
 
 ### Languages
 
