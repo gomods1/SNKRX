@@ -27,6 +27,28 @@ audio.ready = false
 
 local cues = {}     -- name -> { sound_data per pan bucket }
 local voices = {}   -- name -> bucket -> { sources..., i = round robin }
+local started = {}  -- one-shot source -> when it was last started
+
+-- LÖVE lets 64 sources play at once, game-wide, and Source:play() on the 65th
+-- returns false and does nothing. An elite fight gets there in seconds: seven
+-- heroes firing, a swarm dying, the music, and then this layer on top. The
+-- game's own sounds are short and free their slot within a second; a beacon
+-- is a loop that plays for as long as its target exists, so a beacon refused
+-- once used to be a beacon that had gone silent for the rest of the fight --
+-- which is how a coin lying in plain hearing came to make no sound at all
+-- while the elite was up. Refusals are counted here, retried every frame,
+-- and said once to the console.
+audio.refused = {beacon = 0, cue = 0}
+local refused_warned = false
+
+local function note_refusal(kind)
+  audio.refused[kind] = audio.refused[kind] + 1
+  if not refused_warned then
+    refused_warned = true
+    print('[accessibility] out of audio sources: the game is playing 64 sounds at once; ' ..
+      'cues will be retried or recycled until one frees up')
+  end
+end
 
 -- Two struck instruments, shared between the pings and the beacons so that a
 -- thing heard once and the same thing held sound like one object.
@@ -516,6 +538,28 @@ local function get_source(name, bucket)
 end
 
 
+-- Stop the one-shot ping that has been sounding the longest, to make room.
+-- A ping is over in a fraction of a second and says where something *was*;
+-- whatever is asking for the slot is newer news, so the oldest ping is the
+-- cheapest thing this layer can give up. Returns true if a slot was freed.
+local function stop_oldest_ping(except)
+  local oldest, when
+  for _, per_bucket in pairs(voices) do
+    for _, pool in pairs(per_bucket) do
+      for _, s in ipairs(pool) do
+        if s ~= except and s:isPlaying() then
+          local t = started[s] or 0
+          if not when or t < when then oldest, when = s, t end
+        end
+      end
+    end
+  end
+  if not oldest then return false end
+  oldest:stop()
+  return true
+end
+
+
 -- pan: -1 hard left .. +1 hard right (relative to the direction the snake faces)
 -- pitch: playback ratio, used to encode distance
 -- volume: 0..1, on top of the cue's own gain and the master cue volume
@@ -528,7 +572,14 @@ function audio.play(name, pan, pitch, volume)
     if not s then return end
     s:setPitch(math.max(0.2, math.min(4, pitch or 1)))
     s:setVolume(math.max(0, math.min(1, (volume or 1) * bank.gain * audio.volume)))
-    s:play()
+    if not s:play() then
+      -- Every source in the game is taken. Recycle this layer's oldest ping
+      -- and try once more; if even that finds nothing, the ping is dropped,
+      -- which is the one outcome a one-shot can afford.
+      note_refusal('cue')
+      if not (stop_oldest_ping(s) and s:play()) then return end
+    end
+    started[s] = love.timer.getTime()
   end)
   return ok
 end
@@ -562,11 +613,37 @@ local function new_voice(name)
       positional_warned = true
       print('[accessibility] positional audio unavailable: beacons will play but will not be panned')
     end
-    s:play()
     voice.source = s
   end)
   if not ok or not voice.source then return nil end
+  -- Not started here: `apply` starts it, and keeps trying every frame until
+  -- the game has a source to spare. The voice is created either way so that
+  -- the beacon holds its place and the crossfade has something to aim.
+  voice.live = false
   return voice
+end
+
+
+-- Get a beacon voice an OpenAL source, or keep it waiting for one.
+--
+-- A beacon outranks a ping: it is the thing the player is steering by, so if
+-- the pool is full the layer's own oldest ping is stopped to make room. It
+-- cannot outrank the game's sounds, which are outside this module; when those
+-- alone fill the pool the voice stays silent and asks again next frame, which
+-- in practice is a few frames -- game sounds are short.
+local function ensure_live(voice)
+  if voice.live then return true end
+  local s = voice.source
+  local ok = s:play()
+  if not ok then
+    note_refusal('beacon')
+    if stop_oldest_ping(nil) then ok = s:play() end
+  end
+  if ok then
+    voice.live = true
+    voice.amp = 0
+  end
+  return ok
 end
 
 
@@ -644,10 +721,11 @@ end
 
 local function apply(voice, b, volume, dt)
   if not voice or not voice.source then return end
-  -- Fading in stops a beacon that has just acquired a target from arriving as
-  -- a bang, which matters most in a fight, when they acquire constantly.
-  voice.amp = math.min(1, voice.amp + dt / FADE_IN)
   pcall(function()
+    if not ensure_live(voice) then return end
+    -- Fading in stops a beacon that has just acquired a target from arriving
+    -- as a bang, which matters most in a fight, when they acquire constantly.
+    voice.amp = math.min(1, voice.amp + dt / FADE_IN)
     voice.source:setPosition(b.x, 0, b.z)
     voice.source:setPitch(b.pitch)
     voice.source:setVolume(volume * voice.amp * voice.gain * audio.volume)

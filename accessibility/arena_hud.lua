@@ -269,7 +269,14 @@ end
 -- times a second, which is unlistenable and churns a Source each time. So the
 -- one it has is kept until it dies or something gets a clear fifth closer.
 local function tracked_enemy()
-  local nearest = cache.enemies[1]
+  -- The elite is never the enemy this tone follows. It has a beacon of its
+  -- own, and at the start of every elite round it is the only enemy there is,
+  -- so following it here as well played a plain seeker on top of the elite
+  -- tone: the same direction twice, in two voices, until the escorts arrived.
+  local nearest
+  for _, e in ipairs(cache.enemies) do
+    if not e.o.boss then nearest = e break end
+  end
   if not nearest then
     watched.tracked_id = nil
     return nil
@@ -299,14 +306,6 @@ local function sonar_enemies(dt, p, a)
         remap(nearest.d, 16, 260, 1.75, 0.70),
         remap(nearest.d, 16, 260, 0.90, 0.36))
 
-      -- Contact keeps its own hard rattle over the top: the beacon says where
-      -- something is, this says that it is on you now.
-      timers.enemy = timers.enemy - dt
-      if nearest.d < 26 and timers.enemy <= 0 then
-        timers.enemy = 0.14
-        access.audio.play('enemy_close', math.sin(nearest.b), 1, 0.9)
-      end
-
       -- The second enemy keeps its ping rather than getting a beacon of its
       -- own: one held tone is a thing to steer by, two are a chord.
       timers.pinch = timers.pinch - dt
@@ -317,6 +316,17 @@ local function sonar_enemies(dt, p, a)
           ping_enemy(other, 0.5)
         end
       end
+    end
+
+    -- Contact keeps its own hard rattle over the top: the beacon says where
+    -- something is, this says that it is on you now. Keyed to whatever is
+    -- actually nearest, elite included -- the elite is the one thing the
+    -- beacon above does not follow, and it hurts the most to touch.
+    local contact = cache.enemies[1]
+    timers.enemy = timers.enemy - dt
+    if contact and contact.d < 26 and timers.enemy <= 0 then
+      timers.enemy = 0.14
+      access.audio.play('enemy_close', math.sin(contact.b), 1, 0.9)
     end
 
   else
